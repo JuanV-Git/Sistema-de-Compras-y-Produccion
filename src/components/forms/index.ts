@@ -1,0 +1,1 @@
+export { ProductoForm } from './ProductoForm';
