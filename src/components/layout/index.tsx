@@ -100,8 +100,8 @@ function SinewavLogo({ collapsed }: { collapsed: boolean }) {
             </div>
             {!collapsed && (
                 <div className="flex flex-col">
-                    <span className="font-bold text-lg gold-text">Pinturas</span>
-                    <span className="text-xs text-[var(--text-muted)]">Sistema de Gestión</span>
+                    <span className="font-bold text-lg gold-text">Eureka</span>
+                    <span className="text-xs text-[var(--text-muted)]">Consultoría Industrial</span>
                 </div>
             )}
         </div>

@@ -128,10 +128,10 @@ export default function LoginPage() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--accent-gold)] to-[var(--accent-copper)] mb-4">
-                        <span className="text-2xl font-bold text-[var(--bg-primary)]">P</span>
+                        <span className="text-2xl font-bold text-[var(--bg-primary)]">E</span>
                     </div>
-                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Pinturas</h1>
-                    <p className="text-sm text-[var(--text-muted)]">Sistema de Gestión</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Eureka</h1>
+                    <p className="text-sm text-[var(--text-muted)]">Consultoría Industrial</p>
                 </div>
 
                 <Suspense fallback={

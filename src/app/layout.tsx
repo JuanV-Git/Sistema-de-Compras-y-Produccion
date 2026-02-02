@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Sistema de Gestión - Fábrica de Pinturas",
-  description: "Sistema de gestión de producción y compras para fábrica de pinturas",
+  title: "Eureka - Consultoría Industrial",
+  description: "Sistema de gestión integral para consultoría industrial",
 };
 
 export default function RootLayout({
