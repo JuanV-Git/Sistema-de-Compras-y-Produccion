@@ -106,16 +106,25 @@ function LoginForm() {
                 </Button>
             </form>
 
-            <div className="mt-6 text-center">
-                <p className="text-sm text-[var(--text-muted)]">
-                    ¿No tenés cuenta?{' '}
-                    <Link
-                        href="/registro"
-                        className="text-[var(--accent-gold)] hover:underline"
-                    >
-                        Registrate
+            <div className="mt-6">
+                <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t border-[var(--border-default)]" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-[var(--bg-secondary)] px-2 text-[var(--text-muted)]">
+                            ¿Nuevo usuario?
+                        </span>
+                    </div>
+                </div>
+
+                <div className="mt-6">
+                    <Link href="/registro" className="block">
+                        <Button variant="secondary" className="w-full py-3 text-[var(--accent-gold)] border border-[var(--accent-gold)]/20 hover:bg-[var(--accent-gold)]/10">
+                            Solicitar Cuenta de Prueba
+                        </Button>
                     </Link>
-                </p>
+                </div>
             </div>
         </div>
     );

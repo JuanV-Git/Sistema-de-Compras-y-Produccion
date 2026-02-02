@@ -135,9 +135,12 @@ export default function RegistroPage() {
 
                 {/* Form */}
                 <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-default)] p-8">
-                    <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-6">
-                        Crear Cuenta
+                    <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">
+                        Solicitar Acceso de Prueba
                     </h2>
+                    <p className="text-sm text-[var(--text-secondary)] mb-6">
+                        Completa tus datos para comenzar tu prueba gratuita de 30 días.
+                    </p>
 
                     {error && (
                         <div className="mb-4 p-3 bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 rounded-lg flex items-center gap-2 text-[var(--color-danger)]">
@@ -235,7 +238,7 @@ export default function RegistroPage() {
                             ) : (
                                 <>
                                     <UserPlus className="w-5 h-5" />
-                                    Crear Cuenta
+                                    Comenzar Prueba Gratis
                                 </>
                             )}
                         </Button>
