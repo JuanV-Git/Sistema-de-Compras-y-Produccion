@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createBrowserClient } from '@/lib/supabase';
+import { sendLeadNotification } from '@/actions/send-lead-email'; // Importar acción
 import { Button } from '@/components/ui';
 import { UserPlus, Mail, Lock, Building2, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 
@@ -91,6 +92,19 @@ export default function RegistroPage() {
         if (userError) {
             console.error('Error creating user record:', userError);
             // No es crítico, el usuario puede acceder igual
+        }
+
+        // 3. Enviar notificación al adminsitrador (Lead)
+        // No esperamos (await) respuesta bloqueante para no demorar la UI,
+        // pero en Next.js Server Actions es mejor un fire-and-forget controlado.
+        try {
+            await sendLeadNotification({
+                nombre,
+                email,
+                empresa: tenants.find(t => t.id === tenantId)?.nombre || 'Empresa Desconocida'
+            });
+        } catch (err) {
+            console.error('Error enviando notificación de lead:', err);
         }
 
         setSuccess(true);
