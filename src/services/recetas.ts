@@ -4,6 +4,7 @@
 // Usando fetch directo a la API REST de Supabase
 
 import type { Receta, RecetaComponente, EstadoReceta } from '@/types/database';
+import { getPrecioProducto } from './precios'; // Importar servicio precios
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -197,6 +198,40 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
     );
 }
 
+/**
+ * Actualiza los costos de todos los componentes de una receta usando las listas de precios asignadas.
+ */
+export async function actualizarCostosRecetaDesdeListas(recetaId: string): Promise<boolean> {
+    const componentes = await getComponentesByReceta(recetaId);
+    let updatedCount = 0;
+
+    for (const comp of componentes) {
+        // Verificamos si el producto tiene una lista asignada
+        // @ts-ignore - Supabase join type might be missing lista_costo_id in TS definition if not updated
+        const listaId = comp.producto?.lista_costo_id;
+
+        if (listaId) {
+            // Buscamos el precio vigente en esa lista
+            const precioVigente = await getPrecioProducto(listaId, comp.producto_id);
+
+            if (precioVigente && precioVigente.precio !== undefined) {
+                // Actualizamos el componente con el nuevo costo
+                await updateComponente(comp.id, {
+                    costo_unitario: precioVigente.precio,
+                    cantidad: comp.cantidad // Pasamos cantidad para que recalcule subtotal
+                }, recetaId);
+                updatedCount++;
+            }
+        }
+    }
+
+    if (updatedCount > 0) {
+        await updateRecetaCostos(recetaId);
+        return true;
+    }
+    return false;
+}
+
 // =====================================================
 // COMPONENTES DE RECETA
 // =====================================================
@@ -225,7 +260,7 @@ export interface RecetaComponenteConProducto {
  * Obtiene todos los componentes de una receta
  */
 export async function getComponentesByReceta(recetaId: string): Promise<RecetaComponenteConProducto[]> {
-    const url = `${SUPABASE_URL}/rest/v1/recetas_componentes?receta_id=eq.${recetaId}&select=*,producto:productos(id,codigo,nombre,unidad_medida,costo_unitario)`;
+    const url = `${SUPABASE_URL}/rest/v1/recetas_componentes?receta_id=eq.${recetaId}&select=*,producto:productos(id,codigo,nombre,unidad_medida,costo_unitario,lista_costo_id)`; // Added lista_costo_id
     console.log('Fetching componentes from:', url);
 
     const response = await fetch(

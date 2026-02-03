@@ -53,11 +53,10 @@ export interface Producto {
     stock_actual: number;
     stock_minimo: number;
     stock_maximo?: number;
-    stock_maximo?: number;
     costo_unitario: number; // Legacy or Cache
     lista_costo_id?: string; // Reference to listas_precios
     costo_promedio: number;
-    activo: boolean;
+    activo: boolean; // Indicates if deleted/inactive
     created_at: string;
     updated_at: string;
 }

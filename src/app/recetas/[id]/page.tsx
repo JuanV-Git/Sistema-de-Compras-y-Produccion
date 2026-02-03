@@ -12,6 +12,7 @@ import {
     addComponenteToReceta,
     removeComponente,
     updateRecetaCostos,
+    actualizarCostosRecetaDesdeListas, // Importar función
     type RecetaComponenteConProducto,
 } from '@/services/recetas';
 import { getProductos } from '@/services/productos';
@@ -34,6 +35,9 @@ export default function RecetaDetallePage() {
         producto_id: '',
         cantidad: '',
     });
+
+    // Estado para actualizar costos
+    const [updatingCostos, setUpdatingCostos] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -92,6 +96,23 @@ export default function RecetaDetallePage() {
         await loadData();
     }
 
+    async function handleUpdateCostos() {
+        setUpdatingCostos(true);
+        try {
+            const success = await actualizarCostosRecetaDesdeListas(recetaId);
+            if (success) {
+                await loadData();
+            } else {
+                alert('No se encontraron costos para actualizar, revisá que los productos tengan listas asignadas.');
+            }
+        } catch (error) {
+            console.error('Error updating costos:', error);
+            alert('Error al actualizar costos.');
+        } finally {
+            setUpdatingCostos(false);
+        }
+    }
+
     function formatCurrency(amount: number): string {
         return `$${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
     }
@@ -146,11 +167,22 @@ export default function RecetaDetallePage() {
             title={`${receta.codigo} - ${receta.nombre}`}
             description={`Versión ${receta.version || 1}`}
             actions={
-                <Link href={`/recetas/${recetaId}/editar`}>
-                    <Button variant="ghost">
-                        <Edit2 className="w-4 h-4" /> Editar
+                <div className="flex gap-2">
+                    <Button
+                        variant="secondary"
+                        onClick={handleUpdateCostos}
+                        disabled={updatingCostos}
+                        title="Actualizar costos usando las listas de precios vigentes"
+                    >
+                        {updatingCostos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
+                        <span className="ml-2 hidden sm:inline">Actualizar Costos</span>
                     </Button>
-                </Link>
+                    <Link href={`/recetas/${recetaId}/editar`}>
+                        <Button variant="ghost">
+                            <Edit2 className="w-4 h-4" /> Editar
+                        </Button>
+                    </Link>
+                </div>
             }
         >
             {/* Header Info */}

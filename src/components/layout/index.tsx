@@ -16,6 +16,7 @@ import {
     ChevronRight,
     Settings,
     LogOut,
+    Tag // Added Tag
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
@@ -49,6 +50,7 @@ const navigation: NavGroup[] = [
             { label: 'Productos', href: '/productos', icon: Package },
             { label: 'Recetas', href: '/recetas', icon: FlaskConical },
             { label: 'Órdenes de Producción', href: '/produccion', icon: Factory },
+            { label: 'Listas de Precios', href: '/configuracion/listas-precios', icon: Tag }, // New Item
         ],
     },
     {
