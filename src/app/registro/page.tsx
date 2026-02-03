@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createBrowserClient } from '@/lib/supabase';
-import { sendLeadNotification } from '@/actions/send-lead-email'; // Importar acción
+import { notifyAdminNewLead } from '@/actions/notify-admin'; // Acción unificada
 import { Button } from '@/components/ui';
 import { UserPlus, Mail, Lock, Building2, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 
@@ -94,11 +94,9 @@ export default function RegistroPage() {
             // No es crítico, el usuario puede acceder igual
         }
 
-        // 3. Enviar notificación al adminsitrador (Lead)
-        // No esperamos (await) respuesta bloqueante para no demorar la UI,
-        // pero en Next.js Server Actions es mejor un fire-and-forget controlado.
+        // 3. Enviar notificación al administrador (Lead) - Email + Telegram
         try {
-            await sendLeadNotification({
+            await notifyAdminNewLead({
                 nombre,
                 email,
                 empresa: tenants.find(t => t.id === tenantId)?.nombre || 'Empresa Desconocida'
