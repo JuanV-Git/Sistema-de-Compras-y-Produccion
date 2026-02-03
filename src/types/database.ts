@@ -53,11 +53,39 @@ export interface Producto {
     stock_actual: number;
     stock_minimo: number;
     stock_maximo?: number;
-    costo_unitario: number;
+    stock_maximo?: number;
+    costo_unitario: number; // Legacy or Cache
+    lista_costo_id?: string; // Reference to listas_precios
     costo_promedio: number;
     activo: boolean;
     created_at: string;
     updated_at: string;
+}
+
+export interface ListaPrecio {
+    id: string;
+    tenant_id: string;
+    nombre: string;
+    tipo: 'COSTO' | 'VENTA';
+    descripcion?: string;
+    activa: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PrecioProducto {
+    id: string;
+    tenant_id: string;
+    lista_id: string;
+    producto_id: string;
+    precio: number;
+    moneda: string;
+    fecha_vigencia: string;
+    usuario_id?: string;
+    created_at: string;
+    // Joined
+    lista?: ListaPrecio;
+    producto?: Producto;
 }
 
 export interface Proveedor {
