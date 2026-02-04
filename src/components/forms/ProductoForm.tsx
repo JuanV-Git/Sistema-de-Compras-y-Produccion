@@ -9,7 +9,7 @@ import { createProducto, updateProducto, getNextCodigoProducto } from '@/service
 import { getListasPrecios, updatePrecioProducto } from '@/services/precios'; // Importar servicio de precios
 import { getTipoCambio } from '@/services/configuracion';
 import type { Producto, TipoProducto, TipoMateriaPrima, UnidadMedida, ListaPrecio } from '@/types/database'; // Importar ListaPrecio
-import { TipoProductoLabels, TipoMateriaPrimaLabels, UnidadMedidaLabels } from '@/types/database';
+import { TipoProductoLabels, TipoMateriaPrimaLabels, UnidadMedidaLabels, TipoProductoPrefixes } from '@/types/database';
 import Link from 'next/link';
 import { ProductoProveedoresSection } from './ProductoProveedoresSection';
 
@@ -124,7 +124,8 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                     await updatePrecioProducto(
                         formData.lista_costo_id,
                         result.id,
-                        parseFloat(formData.costo_unitario) || 0
+                        parseFloat(formData.costo_unitario) || 0,
+                        formData.moneda_costo // Pasar moneda
                         // TODO: Pasar usuario_id si estuviera disponible
                     );
                 } catch (err) {
@@ -190,7 +191,7 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                                 onChange={(e) => handleChange('codigo', e.target.value)}
                                 required
                                 readOnly={mode === 'create'}
-                                placeholder={formData.tipo ? `${formData.tipo}-001` : 'Seleccione tipo primero'}
+                                placeholder={formData.tipo ? `${TipoProductoPrefixes[formData.tipo as TipoProducto] || formData.tipo}-001` : 'Seleccione tipo primero'}
                                 className={`w-full px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-gold)] ${mode === 'create' ? 'cursor-not-allowed opacity-70' : ''}`}
                             />
                         </div>

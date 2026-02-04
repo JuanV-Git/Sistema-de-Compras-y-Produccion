@@ -5,6 +5,7 @@
 
 import type { Receta, RecetaComponente, EstadoReceta } from '@/types/database';
 import { getPrecioProducto } from './precios'; // Importar servicio precios
+import { getTipoCambio } from './configuracion'; // Importar tipo cambio
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -181,8 +182,34 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
 
     if (!receta) return;
 
-    const costoTotal = componentes.reduce((acc, c) => acc + (c.costo_subtotal || 0), 0);
-    const costoPorUnidad = receta.cantidad_producida > 0 ? costoTotal / receta.cantidad_producida : 0;
+    // Calcular totales en ARS y USD
+    // Estrategia: Iteramos componentes, convertimos según su moneda y sumamos
+    let totalArs = 0;
+    let totalUsd = 0;
+    const tc = await getTipoCambio();
+
+    for (const c of componentes) {
+        // Asumimos que c.moneda viene del fetch (hay que actualizar getComponentesByReceta select)
+        // Ojo: RECETAS_COMPONENTES debe tener columna moneda, si no, asumimos moneda del precio histórico o ARS
+        // Para simplificar, si no tenemos el dato en componente, asumimos ARS.
+        // Pero idealmente updateComponente ya guardó la moneda en la tabla.
+
+        // @ts-ignore
+        const monedaComp = c.moneda || 'ARS';
+        const costoSubtotal = c.costo_subtotal || 0;
+
+        if (monedaComp === 'USD') {
+            totalUsd += costoSubtotal;
+            totalArs += costoSubtotal * tc;
+        } else {
+            totalArs += costoSubtotal;
+            totalUsd += costoSubtotal / tc;
+        }
+    }
+
+    const cantidad = receta.cantidad_producida > 0 ? receta.cantidad_producida : 1;
+    const costoUnitArs = totalArs / cantidad;
+    const costoUnitUsd = totalUsd / cantidad;
 
     await fetch(
         `${SUPABASE_URL}/rest/v1/recetas?id=eq.${recetaId}`,
@@ -190,8 +217,10 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
             method: 'PATCH',
             headers: getHeaders(),
             body: JSON.stringify({
-                costo_total: costoTotal,
-                costo_por_unidad: costoPorUnidad,
+                costo_total: totalArs,
+                costo_por_unidad: costoUnitArs,
+                costo_total_usd: totalUsd,
+                costo_por_unidad_usd: costoUnitUsd,
                 updated_at: new Date().toISOString(),
             }),
         }
@@ -200,25 +229,29 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
 
 /**
  * Actualiza los costos de todos los componentes de una receta usando las listas de precios asignadas.
+ * Ahora soporta conversión de moneda (ARS/USD).
  */
 export async function actualizarCostosRecetaDesdeListas(recetaId: string): Promise<boolean> {
     const componentes = await getComponentesByReceta(recetaId);
+    const tipoCambio = await getTipoCambio(); // Obtener TC global
     let updatedCount = 0;
 
     for (const comp of componentes) {
-        // Verificamos si el producto tiene una lista asignada
-        // @ts-ignore - Supabase join type might be missing lista_costo_id in TS definition if not updated
+        // @ts-ignore
         const listaId = comp.producto?.lista_costo_id;
 
         if (listaId) {
-            // Buscamos el precio vigente en esa lista
             const precioVigente = await getPrecioProducto(listaId, comp.producto_id);
 
             if (precioVigente && precioVigente.precio !== undefined) {
-                // Actualizamos el componente con el nuevo costo
+                // Determinar moneda del precio vigente (default ARS si null)
+                const monedaPrecio = precioVigente.moneda || 'ARS';
+
+                // Actualizamos componente con precio y moneda
                 await updateComponente(comp.id, {
                     costo_unitario: precioVigente.precio,
-                    cantidad: comp.cantidad // Pasamos cantidad para que recalcule subtotal
+                    moneda: monedaPrecio, // Guardamos la moneda original
+                    cantidad: comp.cantidad
                 }, recetaId);
                 updatedCount++;
             }
@@ -226,7 +259,7 @@ export async function actualizarCostosRecetaDesdeListas(recetaId: string): Promi
     }
 
     if (updatedCount > 0) {
-        await updateRecetaCostos(recetaId);
+        await updateRecetaCostos(recetaId); // Recalculamos totales
         return true;
     }
     return false;
@@ -260,7 +293,8 @@ export interface RecetaComponenteConProducto {
  * Obtiene todos los componentes de una receta
  */
 export async function getComponentesByReceta(recetaId: string): Promise<RecetaComponenteConProducto[]> {
-    const url = `${SUPABASE_URL}/rest/v1/recetas_componentes?receta_id=eq.${recetaId}&select=*,producto:productos(id,codigo,nombre,unidad_medida,costo_unitario,lista_costo_id)`; // Added lista_costo_id
+    const url = `${SUPABASE_URL}/rest/v1/recetas_componentes?receta_id=eq.${recetaId}&select=*,producto:productos(id,codigo,nombre,unidad_medida,costo_unitario,lista_costo_id)`;
+    // Nota: Select * traerá 'moneda' si existe en tabla
     console.log('Fetching componentes from:', url);
 
     const response = await fetch(
@@ -332,7 +366,7 @@ export async function addComponenteToReceta(data: CreateComponenteData): Promise
  */
 export async function updateComponente(
     id: string,
-    data: { cantidad?: number; costo_unitario?: number; orden?: number },
+    data: { cantidad?: number; costo_unitario?: number; orden?: number; moneda?: string },
     recetaId: string
 ): Promise<RecetaComponente | null> {
     const updateData: any = { ...data };

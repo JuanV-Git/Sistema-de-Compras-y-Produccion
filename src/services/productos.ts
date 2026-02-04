@@ -5,6 +5,8 @@
 // en lugar del SDK que tiene problemas de AbortError
 
 import type { Producto } from '@/types/database';
+import { TipoProductoPrefixes, type TipoProducto } from '@/types/database'; // Importar prefijos
+
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -90,6 +92,10 @@ export async function getProductosPorTipo(tipo: string): Promise<Producto[]> {
  * Formato: MP-001, SE-001, PT-001, ENVASE-001, ETIQUETA-001
  */
 export async function getNextCodigoProducto(tipo: string): Promise<string> {
+    // Usar prefijos centralizados
+    // @ts-ignore - Tipo 'string' puede no ser key valida si viene sucio, pero asumimos que viene bien
+    const prefix = TipoProductoPrefixes[tipo as TipoProducto] || tipo;
+
     // Obtener todos los productos del tipo (incluso inactivos) para no reusar códigos
     const response = await fetch(
         `${SUPABASE_URL}/rest/v1/productos?tenant_id=eq.${DEMO_TENANT_ID}&tipo=eq.${tipo}&select=codigo&order=codigo.desc&limit=100`,
@@ -100,14 +106,15 @@ export async function getNextCodigoProducto(tipo: string): Promise<string> {
     );
 
     if (!response.ok) {
-        return `${tipo}-001`;
+        return `${prefix}-001`;
     }
 
     const productos = await response.json();
 
     // Buscar el número más alto para este tipo
     let maxNum = 0;
-    const regex = new RegExp(`^${tipo}-(\\d+)$`);
+    // Regex para buscar códigos que empiecen con el prefijo correcto
+    const regex = new RegExp(`^${prefix}-(\\d+)$`);
 
     for (const p of productos) {
         const match = p.codigo?.match(regex);
@@ -119,7 +126,7 @@ export async function getNextCodigoProducto(tipo: string): Promise<string> {
 
     // Siguiente número
     const nextNum = maxNum + 1;
-    return `${tipo}-${String(nextNum).padStart(3, '0')}`;
+    return `${prefix}-${String(nextNum).padStart(3, '0')}`;
 }
 
 /**

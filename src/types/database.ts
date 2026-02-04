@@ -133,6 +133,8 @@ export interface Receta {
     estado: EstadoReceta;
     costo_total: number;
     costo_por_unidad: number;
+    costo_total_usd?: number; // New multi-currency support
+    costo_por_unidad_usd?: number; // New multi-currency support
     observaciones?: string;
     created_at: string;
     updated_at: string;
@@ -259,6 +261,14 @@ export const TipoProductoLabels: Record<TipoProducto, string> = {
     PT: 'Prod. Terminado',
     ENVASE: 'Envase',
     ETIQUETA: 'Etiqueta',
+};
+
+export const TipoProductoPrefixes: Record<TipoProducto, string> = {
+    MP: 'MP',
+    SE: 'SE',
+    PT: 'PT',
+    ENVASE: 'ENV',
+    ETIQUETA: 'ETIQ',
 };
 
 export const TipoMateriaPrimaLabels: Record<TipoMateriaPrima, string> = {

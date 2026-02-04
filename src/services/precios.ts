@@ -116,6 +116,7 @@ export async function updatePrecioProducto(
     listaId: string,
     productoId: string,
     precio: number,
+    moneda: string = 'ARS', // Nuevo param
     usuarioId?: string
 ): Promise<PrecioProducto | null> {
 
@@ -124,7 +125,7 @@ export async function updatePrecioProducto(
         lista_id: listaId,
         producto_id: productoId,
         precio: precio,
-        moneda: 'ARS', // Default por ahora
+        moneda: moneda,
         fecha_vigencia: new Date().toISOString(), // Vigente desde AHORA
         usuario_id: usuarioId
     };
