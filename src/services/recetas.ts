@@ -224,19 +224,16 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
                 costo_por_unidad_usd: costoUnitUsd,
                 updated_at: new Date().toISOString(),
             }),
-        }),
         }
     );
 
-// Actualizar el costo del producto vinculado (si existe)
-// Esto permite que "Recetas Anidadas" funcionen: el costo del SE se actualiza y lo toman las recetas padre.
-if (receta.producto_id) {
-    console.log(`[updateRecetaCostos] Actualizando costo de producto vinculado ${receta.producto_id} a $${costoUnitArs}`);
-    await updateProducto(receta.producto_id, {
-        costo_unitario: costoUnitArs,
-        // Opcional: Podríamos guardar costo_unitario_usd si agregamos la columna a productos
-    });
-}
+    // Actualizar el costo del producto vinculado (si existe)
+    if (receta.producto_id) {
+        console.log(`[updateRecetaCostos] Actualizando costo de producto vinculado ${receta.producto_id} a $${costoUnitArs}`);
+        await updateProducto(receta.producto_id, {
+            costo_unitario: costoUnitArs,
+        });
+    }
 }
 
 /**
