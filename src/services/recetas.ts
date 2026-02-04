@@ -301,6 +301,112 @@ export async function actualizarCostosRecetaDesdeListas(recetaId: string): Promi
     return false;
 }
 
+/**
+ * Recalcula recursivamente los costos de una receta y sus dependencias.
+ * @param recetaId ID de la receta a actualizar
+ * @param recetasMap Mapa de ProductoID -> RecetaID para buscar sub-recetas
+ * @param visited Set para detectar ciclos
+ */
+async function recalcularCostoRecursivo(
+    recetaId: string,
+    recetasMap: Map<string, Receta>,
+    visited: Set<string>
+): Promise<void> {
+    if (visited.has(recetaId)) {
+        console.warn(`[recalcular] Ciclo detectado en receta ${recetaId}, saltando.`);
+        return;
+    }
+    visited.add(recetaId);
+
+    console.log(`[recalcular] Procesando receta ${recetaId}...`);
+
+    // 1. Obtener componentes actuales
+    const componentes = await getComponentesByReceta(recetaId);
+    let cambiosEnComponentes = false;
+
+    // 2. Iterar componentes para actualizar sus costos
+    for (const comp of componentes) {
+        // Opción A: Es Materia Prima o Insumo con Lista de Precio
+        // @ts-ignore
+        const listaId = comp.producto?.lista_costo_id;
+
+        // Opción B: Es un Semielaborado producido por otra receta
+        // Buscamos si existe una receta que produzca este producto_id
+        const subReceta = recetasMap.get(comp.producto_id);
+
+        if (subReceta) {
+            // Es un sub-producto: Actualizar primero la sub-receta
+            await recalcularCostoRecursivo(subReceta.id, recetasMap, visited);
+
+            // Ahora obtenemos el costo actualizado del producto (que debió actualizarse en el paso anterior)
+            // Como la actualización de producto es async, leemos directamente los totales de la subReceta
+            const cantidad = subReceta.cantidad_producida || 1;
+            const costoUnitArs = subReceta.costo_total / cantidad;
+            const costoUnitUsd = (subReceta.costo_total_usd || 0) / cantidad;
+
+            // Actualizar el componente en la receta actual con los nuevos valores
+            if (Math.abs(comp.costo_unitario - costoUnitArs) > 0.01) { // Pequeña tolerancia
+                console.log(`[recalcular] Actualizando componente SE ${comp.producto?.nombre} en receta madre. Nuevo costo: ${costoUnitArs}`);
+                await updateComponente(comp.id, {
+                    costo_unitario: costoUnitArs,
+                    moneda: costoUnitUsd > 0 ? 'USD' : 'ARS', // Preferencia USD si existe
+                }, recetaId);
+                cambiosEnComponentes = true;
+            }
+
+        } else if (listaId) {
+            // Es un insumo comprado: obtener precio de lista
+            const precioVigente = await getPrecioProducto(listaId, comp.producto_id);
+            if (precioVigente && precioVigente.precio !== undefined) {
+                const monedaPrecio = precioVigente.moneda || 'ARS';
+                if (comp.costo_unitario !== precioVigente.precio || comp.moneda !== monedaPrecio) {
+                    await updateComponente(comp.id, {
+                        costo_unitario: precioVigente.precio,
+                        moneda: monedaPrecio,
+                        cantidad: comp.cantidad
+                    }, recetaId);
+                    cambiosEnComponentes = true;
+                }
+            }
+        }
+    }
+
+    // 3. Recalcular totales de esta receta (siempre, por si acaso)
+    await updateRecetaCostos(recetaId);
+}
+
+/**
+ * Ejecuta la actualización masiva de todas las recetas
+ */
+export async function recalcularCostosMasivo(): Promise<{ success: boolean, message: string }> {
+    try {
+        console.log('[Masivo] Iniciando recálculo masivo...');
+        const recetas = await getRecetas();
+        // Filtrar solo activas o todas? Todas por seguridad.
+
+        // Mapa Producto -> Receta que lo produce
+        const recetasMap = new Map<string, Receta>();
+        recetas.forEach(r => {
+            if (r.producto_id) {
+                recetasMap.set(r.producto_id, r);
+            }
+        });
+
+        const visited = new Set<string>();
+
+        // Ejecutar para todas las recetas
+        // El set 'visited' evitará re-procesar las que ya se actualizaron como sub-recetas
+        for (const r of recetas) {
+            await recalcularCostoRecursivo(r.id, recetasMap, visited);
+        }
+
+        return { success: true, message: `Se actualizaron ${visited.size} recetas.` };
+    } catch (error) {
+        console.error('[Masivo] Error:', error);
+        return { success: false, message: 'Error en cálculo masivo' };
+    }
+}
+
 // =====================================================
 // COMPONENTES DE RECETA
 // =====================================================

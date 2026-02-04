@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Badge } from '@/components/ui';
-import { Plus, Search, FlaskConical, Eye, Edit, DollarSign, Loader2 } from 'lucide-react';
-import { getRecetas } from '@/services/recetas';
+import { Plus, Search, FlaskConical, Eye, Edit, DollarSign, Loader2, RefreshCw } from 'lucide-react';
+import { getRecetas, recalcularCostosMasivo } from '@/services/recetas';
 import type { Receta } from '@/types/database';
 import { EstadoRecetaLabels } from '@/types/database';
 
@@ -22,18 +22,20 @@ const estadoBadgeVariant: Record<string, 'default' | 'gold' | 'success' | 'warni
 export default function RecetasPage() {
     const [recetas, setRecetas] = useState<Receta[]>([]);
     const [loading, setLoading] = useState(true);
+    const [updating, setUpdating] = useState(false); // Estado para actualización masiva
     const [searchTerm, setSearchTerm] = useState('');
 
     // Cargar datos de Supabase
     useEffect(() => {
-        async function loadRecetas() {
-            setLoading(true);
-            const data = await getRecetas();
-            setRecetas(data);
-            setLoading(false);
-        }
         loadRecetas();
     }, []);
+
+    async function loadRecetas() {
+        setLoading(true);
+        const data = await getRecetas();
+        setRecetas(data);
+        setLoading(false);
+    }
 
     // Filtrar recetas
     const filteredRecetas = useMemo(() => {
@@ -52,16 +54,46 @@ export default function RecetasPage() {
             : 0,
     }), [recetas]);
 
+    async function handleRecalcularCostos() {
+        if (!confirm('¿Desea recalcular los costos de TODAS las recetas basándose en las listas de precios actuales? Esto puede tomar unos momentos.')) return;
+
+        setUpdating(true);
+        try {
+            const result = await recalcularCostosMasivo();
+            if (result.success) {
+                alert(`Actualización completada: ${result.message}`);
+                await loadRecetas(); // Recargar datos para ver nuevos costos
+            } else {
+                alert('Hubo un error al actualizar los costos. Revise la consola.');
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Error inesperado al actualizar costos.');
+        } finally {
+            setUpdating(false);
+        }
+    }
+
     return (
         <PageContainer
             title="Recetas"
             description="Definición de fórmulas y composición de productos"
             actions={
-                <Link href="/recetas/nuevo">
-                    <Button>
-                        <Plus className="w-4 h-4" /> Nueva Receta
+                <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={handleRecalcularCostos}
+                        disabled={updating || loading}
+                    >
+                        {updating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                        {updating ? 'Actualizando...' : 'Actualizar Costos'}
                     </Button>
-                </Link>
+                    <Link href="/recetas/nuevo">
+                        <Button>
+                            <Plus className="w-4 h-4 mr-2" /> Nueva Receta
+                        </Button>
+                    </Link>
+                </div>
             }
         >
             {/* Stats */}
