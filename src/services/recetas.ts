@@ -174,6 +174,33 @@ export async function updateReceta(
 }
 
 /**
+ * Vincula una receta a un producto (usado desde ProductoForm)
+ */
+export async function linkRecetaToProducto(recetaId: string, productoId: string): Promise<boolean> {
+    const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/recetas?id=eq.${recetaId}`,
+        {
+            method: 'PATCH',
+            headers: {
+                ...getHeaders(),
+                'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({
+                producto_id: productoId,
+                updated_at: new Date().toISOString(),
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        console.error('Error linking receta to producto:', await response.text());
+        return false;
+    }
+
+    return true;
+}
+
+/**
  * Actualiza los costos de una receta
  */
 export async function updateRecetaCostos(recetaId: string): Promise<void> {

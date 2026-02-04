@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Select } from '@/components/ui';
-import { Save, ArrowLeft, Loader2 } from 'lucide-react';
+import { Save, ArrowLeft, Loader2, Package } from 'lucide-react';
 import { createProducto, updateProducto, getNextCodigoProducto } from '@/services/productos';
+import { getRecetas, linkRecetaToProducto } from '@/services/recetas'; // Importar servicio recetas
 import { getListasPrecios, updatePrecioProducto } from '@/services/precios'; // Importar servicio de precios
 import { getTipoCambio } from '@/services/configuracion';
 import type { Producto, TipoProducto, TipoMateriaPrima, UnidadMedida, ListaPrecio } from '@/types/database'; // Importar ListaPrecio
@@ -40,6 +41,8 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
     const [loadingCodigo, setLoadingCodigo] = useState(false);
     const [tipoCambio, setTipoCambio] = useState<number>(1200);
     const [listasPrecios, setListasPrecios] = useState<ListaPrecio[]>([]); // Estado para listas
+    const [recetas, setRecetas] = useState<any[]>([]); // Estado para recetas
+    const [selectedRecetaId, setSelectedRecetaId] = useState<string>(''); // Receta seleccionada
 
     // Form state
     const [formData, setFormData] = useState({
@@ -56,11 +59,21 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
         stock_actual: producto?.stock_actual?.toString() || '0',
     });
 
-    // Cargar listas y tipo de cambio al montar
+    // Cargar listas, tipo de cambio y recetas al montar
     useEffect(() => {
         getTipoCambio().then(setTipoCambio);
-        getListasPrecios('COSTO').then(setListasPrecios); // Cargar listas de costo
-    }, []);
+        getListasPrecios('COSTO').then(setListasPrecios);
+        getRecetas().then(data => {
+            setRecetas(data);
+            // Si es edición, buscar si alguna receta apunta a este producto
+            if (producto) {
+                const linkedReceta = data.find(r => r.producto_id === producto.id);
+                if (linkedReceta) {
+                    setSelectedRecetaId(linkedReceta.id);
+                }
+            }
+        });
+    }, [producto]);
 
     // Generar código automático cuando cambia el tipo (solo en modo crear)
     useEffect(() => {
@@ -131,6 +144,16 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                 } catch (err) {
                     console.error('Error guardando precio histórico:', err);
                     // No bloqueamos el flujo principal si falla el histórico, pero logueamos
+                }
+            }
+
+            // Vincular receta seleccionada (Si aplica y se seleccionó una)
+            if (selectedRecetaId && (formData.tipo === 'SE' || formData.tipo === 'PT')) {
+                try {
+                    console.log(`Vinculando receta ${selectedRecetaId} al producto ${result.id}`);
+                    await linkRecetaToProducto(selectedRecetaId, result.id);
+                } catch (err) {
+                    console.error('Error vinculando receta:', err);
                 }
             }
 
@@ -223,6 +246,29 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                                     onChange={(e) => handleChange('tipo_materia_prima', e.target.value)}
                                     placeholder="Seleccionar categoría"
                                 />
+                            </div>
+                        )}
+
+                        {/* Receta de Producción (Solo para SE o PT) */}
+                        {(formData.tipo === 'SE' || formData.tipo === 'PT') && (
+                            <div className="md:col-span-2 p-4 bg-[var(--bg-primary)]/30 rounded-lg border border-[var(--border-default)] mb-4">
+                                <label className="block text-sm font-medium text-[var(--accent-gold)] mb-2 flex items-center gap-2">
+                                    <Package className="w-4 h-4" /> Receta de Producción Asociada
+                                </label>
+                                <Select
+                                    options={[
+                                        { value: '', label: 'Seleccionar una receta existente...' },
+                                        ...recetas
+                                            .filter(r => r.estado === 'ACTIVA' || r.id === selectedRecetaId)
+                                            .map(r => ({ value: r.id, label: `${r.codigo} - ${r.nombre}` }))
+                                    ]}
+                                    value={selectedRecetaId}
+                                    onChange={(e) => setSelectedRecetaId(e.target.value)}
+                                    placeholder="Vincular con una receta..."
+                                />
+                                <p className="text-xs text-[var(--text-muted)] mt-1">
+                                    Al seleccionar una receta, este producto tomará su costo automáticamente de ella.
+                                </p>
                             </div>
                         )}
 
