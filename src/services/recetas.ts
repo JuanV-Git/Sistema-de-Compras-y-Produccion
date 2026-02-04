@@ -277,7 +277,9 @@ export interface RecetaComponenteConProducto {
     cantidad: number;
     unidad_medida: string;
     orden: number;
+    orden: number;
     costo_unitario: number;
+    moneda?: string; // Added
     costo_subtotal: number;
     created_at: string;
     producto?: {
@@ -322,7 +324,9 @@ export type CreateComponenteData = {
     cantidad: number;
     unidad_medida: string;
     orden?: number;
+    orden?: number;
     costo_unitario: number;
+    moneda?: string; // Added
 };
 
 /**

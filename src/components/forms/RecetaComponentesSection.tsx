@@ -87,15 +87,17 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
 
         setAdding(true);
         try {
-            // Obtener costo en ARS (convierte si es USD)
-            const costoEnARS = getCostoEnARS(producto);
+            // Obtener datos originales del producto
+            const monedaCosto = (producto as any).moneda_costo || 'ARS';
+            const costoBase = producto.costo_unitario || 0;
 
             await addComponenteToReceta({
                 receta_id: recetaId,
                 producto_id: newComponente.producto_id,
                 cantidad: parseFloat(newComponente.cantidad),
                 unidad_medida: producto.unidad_medida,
-                costo_unitario: costoEnARS, // Siempre guardamos en ARS
+                costo_unitario: costoBase,
+                moneda: monedaCosto, // Guardamos la moneda correcta
                 orden: componentes.length + 1,
             });
             await loadData();
@@ -223,8 +225,9 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
                                     <th className="text-left py-2 px-3 text-[var(--text-muted)]">#</th>
                                     <th className="text-left py-2 px-3 text-[var(--text-muted)]">Producto</th>
                                     <th className="text-right py-2 px-3 text-[var(--text-muted)]">Cantidad</th>
-                                    <th className="text-right py-2 px-3 text-[var(--text-muted)]">Costo Unit.</th>
-                                    <th className="text-right py-2 px-3 text-[var(--text-muted)]">Subtotal</th>
+                                    <th className="text-right py-2 px-3 text-[var(--text-muted)]">Costo Orig.</th>
+                                    <th className="text-right py-2 px-3 text-[var(--text-muted)]">Subtotal $ARG</th>
+                                    <th className="text-right py-2 px-3 text-[var(--text-muted)]">Subtotal USD</th>
                                     <th className="text-center py-2 px-3 text-[var(--text-muted)]">Acciones</th>
                                 </tr>
                             </thead>
@@ -264,10 +267,26 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
                                             )}
                                         </td>
                                         <td className="py-2 px-3 text-right text-[var(--text-secondary)]">
-                                            ${comp.costo_unitario?.toFixed(2) || '0.00'}
+                                            <div className="flex flex-col items-end">
+                                                <span>{comp.moneda === 'USD' ? 'USD' : '$'} {comp.costo_unitario?.toFixed(2)}</span>
+                                                {comp.moneda === 'USD' && (
+                                                    <span className="text-xs text-[var(--text-muted)]">
+                                                        (${(comp.costo_unitario * tipoCambio).toLocaleString('es-AR')})
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
-                                        <td className="py-2 px-3 text-right font-medium gold-text">
-                                            ${comp.costo_subtotal?.toFixed(2) || '0.00'}
+                                        <td className="py-2 px-3 text-right font-medium text-[var(--text-primary)]">
+                                            ${(comp.moneda === 'USD'
+                                                ? (comp.costo_unitario * comp.cantidad * tipoCambio)
+                                                : (comp.costo_unitario * comp.cantidad)
+                                            ).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </td>
+                                        <td className="py-2 px-3 text-right font-medium text-[var(--accent-gold)]">
+                                            USD {(comp.moneda === 'USD'
+                                                ? (comp.costo_unitario * comp.cantidad)
+                                                : (comp.costo_unitario * comp.cantidad / tipoCambio)
+                                            ).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </td>
                                         <td className="py-2 px-3 text-center">
                                             <button
@@ -287,7 +306,22 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
                     <div className="flex justify-end mt-4 pt-4 border-t border-[var(--border-default)]">
                         <div className="text-right">
                             <p className="text-sm text-[var(--text-muted)]">Costo Total de la Receta</p>
-                            <p className="text-2xl font-bold gold-text">${costoTotal.toFixed(2)}</p>
+                            <div className="flex flex-col items-end">
+                                <p className="text-2xl font-bold text-[var(--text-primary)]">
+                                    ${componentes.reduce((acc, c) => {
+                                        const sub = c.costo_unitario * c.cantidad;
+                                        const subArs = c.moneda === 'USD' ? sub * tipoCambio : sub;
+                                        return acc + subArs;
+                                    }, 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </p>
+                                <p className="text-lg font-medium text-[var(--accent-gold)]">
+                                    USD {componentes.reduce((acc, c) => {
+                                        const sub = c.costo_unitario * c.cantidad;
+                                        const subUsd = c.moneda === 'USD' ? sub : sub / tipoCambio;
+                                        return acc + subUsd;
+                                    }, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </>

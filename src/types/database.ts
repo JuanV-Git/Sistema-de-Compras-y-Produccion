@@ -149,6 +149,7 @@ export interface RecetaComponente {
     unidad_medida: string;
     orden: number;
     costo_unitario: number;
+    moneda?: string; // Added for multi-currency
     costo_subtotal: number;
     created_at: string;
     // Joined
