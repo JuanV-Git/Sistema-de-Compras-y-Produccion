@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Loader2, Package, DollarSign } from 'lucide-react';
 import { Card, Button, Badge, Select } from '@/components/ui';
-import { getProductos } from '@/services/productos';
+import { getProductos, getProductosConPrecios, type ProductoConPrecio } from '@/services/productos';
 import { getTipoCambio } from '@/services/configuracion';
 import {
     getComponentesByReceta,
@@ -21,7 +21,7 @@ interface RecetaComponentesSectionProps {
 
 export function RecetaComponentesSection({ recetaId, onCostosActualizados }: RecetaComponentesSectionProps) {
     const [componentes, setComponentes] = useState<RecetaComponenteConProducto[]>([]);
-    const [productos, setProductos] = useState<Producto[]>([]);
+    const [productos, setProductos] = useState<ProductoConPrecio[]>([]); // Usar tipo enriquecido
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
     const [tipoCambio, setTipoCambioLocal] = useState<number>(1200);
@@ -44,7 +44,7 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
         setLoading(true);
         const [componentesData, productosData, tc] = await Promise.all([
             getComponentesByReceta(recetaId),
-            getProductos(),
+            getProductosConPrecios(), // Usar función enriquecida
             getTipoCambio(),
         ]);
         setComponentes(componentesData);
@@ -58,9 +58,9 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
     }
 
     // Función para obtener costo en ARS (convierte si es USD)
-    function getCostoEnARS(producto: Producto): number {
-        const costoBase = producto.costo_unitario || 0;
-        const moneda = (producto as any).moneda_costo || 'ARS';
+    function getCostoEnARS(producto: ProductoConPrecio): number {
+        const costoBase = producto.costo_actual || producto.costo_unitario || 0;
+        const moneda = producto.moneda_costo || 'ARS';
         return moneda === 'USD' ? costoBase * tipoCambio : costoBase;
     }
 
@@ -88,8 +88,8 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
         setAdding(true);
         try {
             // Obtener datos originales del producto
-            const monedaCosto = (producto as any).moneda_costo || 'ARS';
-            const costoBase = producto.costo_unitario || 0;
+            const monedaCosto = producto.moneda_costo || 'ARS';
+            const costoBase = producto.costo_actual || producto.costo_unitario || 0;
 
             await addComponenteToReceta({
                 receta_id: recetaId,
@@ -162,11 +162,16 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
                                 options={[
                                     { value: '', label: 'Seleccionar producto...' },
                                     ...productosDisponibles.map((p) => {
-                                        const moneda = (p as any).moneda_costo || 'ARS';
-                                        const costoARS = getCostoEnARS(p);
+                                        const moneda = p.moneda_costo || 'ARS';
+                                        const costoBase = p.costo_actual || p.costo_unitario || 0;
+                                        const costoDisplay = moneda === 'USD' ? costoBase : (costoBase / (moneda === 'ARS' ? 1 : 1)); // Solo para display logico
+
+                                        // Si es USD mostramos USD, si es ARS mostramos $
+                                        const precioText = moneda === 'USD' ? `USD ${costoBase.toFixed(2)}` : `$${costoBase.toFixed(2)}`;
+
                                         return {
                                             value: p.id,
-                                            label: `${p.codigo} - ${p.nombre} (${moneda === 'USD' ? 'USD→' : ''}$${costoARS.toFixed(2)}/${p.unidad_medida})`,
+                                            label: `${p.codigo} - ${p.nombre} (${precioText}/${p.unidad_medida})`,
                                         };
                                     }),
                                 ]}

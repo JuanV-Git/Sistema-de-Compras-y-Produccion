@@ -24,7 +24,14 @@ function getHeaders() {
 // Re-exportar el tipo para uso externo
 export type { Producto };
 
+import { getPrecioProducto } from './precios'; // Importar servicio de precios
+
 export type CreateProductoData = Omit<Producto, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>;
+
+export interface ProductoConPrecio extends Producto {
+    moneda_costo?: string;
+    costo_actual?: number;
+}
 
 /**
  * Obtiene todos los productos del tenant actual
@@ -248,4 +255,35 @@ export async function deleteProducto(id: string): Promise<boolean> {
     }
 
     return true;
+}
+
+/**
+ * Obtiene todos los productos con su precio vigente (si tienen lista asignada)
+ * Resuelve el problema de moneda faltante en dropdowns.
+ */
+export async function getProductosConPrecios(): Promise<ProductoConPrecio[]> {
+    const productos = await getProductos();
+
+    // Obtener precios en paralelo (optimizable luego con un join en Supabase si fuera RPC)
+    // Por ahora hacemos un Promise.all mapeado, idealmente sería un solo query pero REST es limitado en joins profundos con lógica de "vigente".
+    const productosConPrecio = await Promise.all(productos.map(async (p) => {
+        let moneda = 'ARS';
+        let costo = p.costo_unitario;
+
+        if (p.lista_costo_id) {
+            const precioVigente = await getPrecioProducto(p.lista_costo_id, p.id);
+            if (precioVigente) {
+                moneda = precioVigente.moneda;
+                costo = precioVigente.precio;
+            }
+        }
+
+        return {
+            ...p,
+            moneda_costo: moneda,
+            costo_actual: costo
+        };
+    }));
+
+    return productosConPrecio;
 }
