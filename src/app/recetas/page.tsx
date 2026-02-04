@@ -81,7 +81,7 @@ export default function RecetasPage() {
             actions={
                 <div className="flex gap-2">
                     <Button
-                        variant="outline"
+                        variant="secondary"
                         onClick={handleRecalcularCostos}
                         disabled={updating || loading}
                     >

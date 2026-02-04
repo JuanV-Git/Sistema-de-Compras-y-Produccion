@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button, Card, Input } from '@/components/ui';
 import { Plus, Tag, DollarSign, Archive, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { getListasPrecios, createListaPrecio } from '@/services/precios';
@@ -123,34 +124,36 @@ export default function ListasPreciosPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {listas.map(lista => (
-                        <Card key={lista.id} className="p-5 hover:border-[var(--accent-gold)] transition-colors group">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className={`p-2 rounded-lg ${lista.tipo === 'COSTO' ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'}`}>
-                                    {lista.tipo === 'COSTO' ? <Tag className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
+                        <Link key={lista.id} href={`/configuracion/listas-precios/${lista.id}`}>
+                            <Card className="p-5 hover:border-[var(--accent-gold)] transition-colors group h-full">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className={`p-2 rounded-lg ${lista.tipo === 'COSTO' ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'}`}>
+                                        {lista.tipo === 'COSTO' ? <Tag className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
+                                    </div>
+                                    <div className="px-2 py-1 rounded text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
+                                        {lista.tipo}
+                                    </div>
                                 </div>
-                                <div className="px-2 py-1 rounded text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
-                                    {lista.tipo}
+                                <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-1 group-hover:text-[var(--accent-gold)] transition-colors">{lista.nombre}</h3>
+                                <p className="text-sm text-[var(--text-secondary)] mb-4 min-h-[40px] line-clamp-2">
+                                    {lista.descripcion || 'Sin descripción'}
+                                </p>
+                                <div className="pt-4 border-t border-[var(--border-default)] flex justify-between items-center text-xs text-[var(--text-muted)]">
+                                    <span>Creada el {new Date(lista.created_at).toLocaleDateString()}</span>
+                                    {lista.activa ? (
+                                        <span className="flex items-center text-green-500">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 mr-2" />
+                                            Activa
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-center text-[var(--text-muted)]">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-gray-500 mr-2" />
+                                            Archivada
+                                        </span>
+                                    )}
                                 </div>
-                            </div>
-                            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-1">{lista.nombre}</h3>
-                            <p className="text-sm text-[var(--text-secondary)] mb-4 min-h-[40px]">
-                                {lista.descripcion || 'Sin descripción'}
-                            </p>
-                            <div className="pt-4 border-t border-[var(--border-default)] flex justify-between items-center text-xs text-[var(--text-muted)]">
-                                <span>Creada el {new Date(lista.created_at).toLocaleDateString()}</span>
-                                {lista.activa ? (
-                                    <span className="flex items-center text-green-500">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 mr-2" />
-                                        Activa
-                                    </span>
-                                ) : (
-                                    <span className="flex items-center text-[var(--text-muted)]">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-500 mr-2" />
-                                        Archivada
-                                    </span>
-                                )}
-                            </div>
-                        </Card>
+                            </Card>
+                        </Link>
                     ))}
                 </div>
             )}
