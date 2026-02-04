@@ -52,6 +52,7 @@ export interface Producto {
     unidad_medida: string;
     stock_actual: number;
     stock_minimo: number;
+    stock_maximo?: number; // Restaurado
     costo_unitario: number; // Legacy or Cache
     lista_costo_id?: string; // Reference to listas_precios
     costo_promedio: number;
