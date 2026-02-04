@@ -6,6 +6,7 @@
 import type { Receta, RecetaComponente, EstadoReceta } from '@/types/database';
 import { getPrecioProducto } from './precios'; // Importar servicio precios
 import { getTipoCambio } from './configuracion'; // Importar tipo cambio
+import { updateProducto } from './productos'; // Importar updateProducto para propagar costos
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -223,8 +224,19 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
                 costo_por_unidad_usd: costoUnitUsd,
                 updated_at: new Date().toISOString(),
             }),
+        }),
         }
     );
+
+// Actualizar el costo del producto vinculado (si existe)
+// Esto permite que "Recetas Anidadas" funcionen: el costo del SE se actualiza y lo toman las recetas padre.
+if (receta.producto_id) {
+    console.log(`[updateRecetaCostos] Actualizando costo de producto vinculado ${receta.producto_id} a $${costoUnitArs}`);
+    await updateProducto(receta.producto_id, {
+        costo_unitario: costoUnitArs,
+        // Opcional: Podríamos guardar costo_unitario_usd si agregamos la columna a productos
+    });
+}
 }
 
 /**
