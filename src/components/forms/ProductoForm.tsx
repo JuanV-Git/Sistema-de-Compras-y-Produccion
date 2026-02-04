@@ -263,7 +263,25 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                                             .map(r => ({ value: r.id, label: `${r.codigo} - ${r.nombre}` }))
                                     ]}
                                     value={selectedRecetaId}
-                                    onChange={(e) => setSelectedRecetaId(e.target.value)}
+                                    onChange={(e) => {
+                                        const newRecetaId = e.target.value;
+                                        setSelectedRecetaId(newRecetaId);
+
+                                        // Si selecciona receta, actualizar costo automáticamente
+                                        if (newRecetaId) {
+                                            const r = recetas.find(x => x.id === newRecetaId);
+                                            if (r) {
+                                                const costoUsd = r.costo_por_unidad_usd || 0;
+                                                const costoArs = r.costo_por_unidad || 0;
+                                                // Preferir USD si existe y es > 0
+                                                if (costoUsd > 0) {
+                                                    setFormData(prev => ({ ...prev, moneda_costo: 'USD', costo_unitario: costoUsd.toString() }));
+                                                } else {
+                                                    setFormData(prev => ({ ...prev, moneda_costo: 'ARS', costo_unitario: costoArs.toString() }));
+                                                }
+                                            }
+                                        }
+                                    }}
                                     placeholder="Vincular con una receta..."
                                 />
                                 <p className="text-xs text-[var(--text-muted)] mt-1">
@@ -314,12 +332,14 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                                 <div>
                                     <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
                                         Costo Unitario Actual
+                                        {selectedRecetaId && <span className="text-xs text-yellow-500 ml-2">(Sincronizado con Receta)</span>}
                                     </label>
                                     <div className="flex gap-2">
                                         <select
                                             value={formData.moneda_costo}
                                             onChange={(e) => handleChange('moneda_costo', e.target.value)}
-                                            className="px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
+                                            className="px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)] disabled:opacity-50"
+                                            disabled={!!selectedRecetaId}
                                         >
                                             <option value="ARS">$AR</option>
                                             <option value="USD">USD</option>
@@ -330,7 +350,8 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                                             min="0"
                                             value={formData.costo_unitario}
                                             onChange={(e) => handleChange('costo_unitario', e.target.value)}
-                                            className="flex-1 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
+                                            className="flex-1 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)] disabled:opacity-50"
+                                            disabled={!!selectedRecetaId}
                                         />
                                     </div>
                                     {formData.moneda_costo === 'USD' && (
