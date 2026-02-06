@@ -80,25 +80,42 @@ export default function DetalleListaPrecioPage() {
         if (!lista || rows.length === 0) return;
 
         // Headers: Fecha, Codigo, Descripcion, Unidad, Moneda, Costo
-        const headers = ['Fecha', 'Codigo', 'Descripcion', 'Unidad', 'Moneda', 'Costo'];
+        // Headers: Fecha, Codigo, Descripcion, Unidad, Moneda, Costo, Usuario
+        const headers = ['Fecha', 'Codigo', 'Descripcion', 'Unidad', 'Moneda', 'Costo', 'Usuario'];
 
         // Data rows
-        const csvContent = rows.map(row => {
-            const fecha = row.precioActual?.fecha_vigencia
-                ? new Date(row.precioActual.fecha_vigencia).toLocaleDateString()
-                : '-';
-            const costo = row.precioActual?.precio || 0;
-            const moneda = row.precioActual?.moneda || 'ARS';
+        // Data rows: iteramos sobre todo el historial para exportar cada cambio
+        const csvContent = rows.flatMap(row => {
+            // Si hay historial, creamos una fila por cada registro
+            if (row.historial && row.historial.length > 0) {
+                return row.historial.map(h => {
+                    const fecha = h.fecha_vigencia
+                        ? new Date(h.fecha_vigencia).toLocaleDateString()
+                        : '-';
 
-            // Escape quotes and handle commas in text
-            return [
-                fecha,
-                `"${row.producto.codigo}"`,
-                `"${row.producto.nombre}"`,
-                row.producto.unidad_medida,
-                moneda,
-                costo
-            ].join(',');
+                    return [
+                        fecha,
+                        `"${row.producto.codigo}"`,
+                        `"${row.producto.nombre}"`,
+                        row.producto.unidad_medida,
+                        h.moneda || 'ARS',
+                        h.precio || 0,
+                        h.usuario_id ? `"${h.usuario_id}"` : 'Sistema' // Agregamos usuario como dato extra util
+                    ].join(',');
+                });
+            } else {
+                // Si no hay historial, al menos mostrar el producto
+                const fecha = '-';
+                return [
+                    fecha,
+                    `"${row.producto.codigo}"`,
+                    `"${row.producto.nombre}"`,
+                    row.producto.unidad_medida,
+                    'ARS',
+                    '0',
+                    '-'
+                ].join(',');
+            }
         });
 
         // Combine with BOM for Excel utf-8 compatibility
