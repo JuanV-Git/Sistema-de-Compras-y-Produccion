@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Input } from '@/components/ui';
 import { ArrowLeft, Save, Loader2, Search, DollarSign } from 'lucide-react';
-import { getListasPrecios, getHistorialPrecios, updatePrecioProducto } from '@/services/precios';
+import { getListasPrecios, getHistorialPrecios, updatePrecioProducto, getPreciosDeLista } from '@/services/precios';
 import { getProductos } from '@/services/productos';
 import { getTipoCambio } from '@/services/configuracion';
 import type { ListaPrecio, Producto, PrecioProducto } from '@/types/database';
@@ -25,7 +25,6 @@ export default function DetalleListaPrecioPage() {
     const [lista, setLista] = useState<ListaPrecio | null>(null);
     const [rows, setRows] = useState<ProductoPrecioRow[]>([]);
     const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
     const [tipoCambio, setTipoCambio] = useState<number>(0);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -36,11 +35,12 @@ export default function DetalleListaPrecioPage() {
     async function loadData() {
         setLoading(true);
         try {
-            // Cargar datos en paralelo
-            const [listas, productos, tc] = await Promise.all([
-                getListasPrecios(), // Deberíamos tener getListaById pero filtramos por ahora
+            // Cargar datos en paralelo: Listas, Productos, TC y Precios Vigentes de esta lista
+            const [listas, productos, tc, preciosVigentesMap] = await Promise.all([
+                getListasPrecios(),
                 getProductos(),
-                getTipoCambio()
+                getTipoCambio(),
+                getPreciosDeLista(id)
             ]);
 
             const currentLista = listas.find(l => l.id === id);
@@ -48,24 +48,21 @@ export default function DetalleListaPrecioPage() {
             setTipoCambio(tc);
 
             if (currentLista) {
-                // Cargar precios actuales para cada producto en esta lista
-                // Nota: Esto podría optimizarse en el backend con un join
                 const rowsData: ProductoPrecioRow[] = [];
 
-                // Filtramos solo materias primas e insumos si es lista de costo
+                // Filtramos productos según tipo de lista
                 const productosFiltrados = currentLista.tipo === 'COSTO'
                     ? productos.filter(p => ['MP', 'ENVASE', 'ETIQUETA', 'MATERIA_PRIMA'].includes(p.tipo))
-                    : productos.filter(p => p.tipo === 'PT'); // Solo PT para venta (ejemplo)
+                    : productos.filter(p => p.tipo === 'PT' || p.tipo === 'SE');
 
                 for (const p of productosFiltrados) {
-                    // Obtener precio vigente simulado (debería ser batch request idealmente)
-                    // Por ahora obtenemos individualmente, optimizable
-                    // Vamos a usar una estrategia lazy o batch en refactor futuro
-                    // Asumimos carga inicial limpia
+                    const precioVigente = preciosVigentesMap[p.id];
+
                     rowsData.push({
                         producto: p,
-                        nuevoPrecio: '', // Se llena si se quiere cambiar
-                        moneda: 'ARS'
+                        precioActual: precioVigente, // Ahora sí tenemos el precio real
+                        nuevoPrecio: '',
+                        moneda: precioVigente?.moneda || 'ARS'
                     });
                 }
                 setRows(rowsData);
@@ -76,25 +73,7 @@ export default function DetalleListaPrecioPage() {
         setLoading(false);
     }
 
-    // Cargar precio individual al expandir o necesitar (simulado aquí, idealmente carga batch)
-    // Para v1 simplificada, permitimos cargar precios uno a uno o mostrar los que tienen precio si implementamos getPreciosByLista en servicio
-
-    const handleSavePrecio = async (productoId: string, precio: string, moneda: string) => {
-        if (!precio || isNaN(parseFloat(precio))) return;
-
-        setSaving(true);
-        try {
-            await updatePrecioProducto(id, productoId, parseFloat(precio), moneda);
-            // Feedback visual o recarga
-            alert('Precio actualizado');
-        } catch (error) {
-            console.error('Error saving precio:', error);
-        }
-        setSaving(false);
-    };
-
-    // Renderizado simplificado para MVP
-    if (loading) return <PageContainer title="Cargando..."><Loader2 className="animate-spin" /></PageContainer>;
+    if (loading) return <PageContainer title="Cargando..."><div className="flex justify-center p-12"><Loader2 className="animate-spin w-8 h-8 text-[var(--accent-gold)]" /></div></PageContainer>;
     if (!lista) return <PageContainer title="Lista no encontrada">Lista no existe</PageContainer>;
 
     const filteredRows = rows.filter(r =>
@@ -113,7 +92,7 @@ export default function DetalleListaPrecioPage() {
             }
         >
             <Card className="mb-6 ">
-                <div className="relative mb-4">
+                <div className="relative mb-6">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-[var(--text-muted)]" />
                     <Input
                         placeholder="Buscar producto por nombre o código..."
@@ -126,92 +105,136 @@ export default function DetalleListaPrecioPage() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead>
-                            <tr className="border-b border-[var(--border-default)]">
-                                <th className="py-3 px-4">Producto</th>
-                                <th className="py-3 px-4">Unidad</th>
-                                <th className="py-3 px-4">Nuevo Precio</th>
-                                <th className="py-3 px-4">Moneda</th>
-                                <th className="py-3 px-4">Conversión (Ref)</th>
-                                <th className="py-3 px-4 text-right">Acción</th>
+                            <tr className="border-b border-[var(--border-default)] text-[var(--text-secondary)]">
+                                <th className="py-3 px-4 font-medium">Producto</th>
+                                <th className="py-3 px-4 font-medium">Unidad</th>
+                                <th className="py-3 px-4 font-medium">Precio Vigente</th>
+                                <th className="py-3 px-4 font-medium">Actualizado</th>
+                                <th className="py-3 px-4 font-medium">Nuevo Precio</th>
+                                <th className="py-3 px-4 font-medium">Moneda</th>
+                                <th className="py-3 px-4 font-medium text-right">Acción</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {filteredRows.map((row, idx) => (
+                        <tbody className="divide-y divide-[var(--border-default)]">
+                            {filteredRows.map((row) => (
                                 <PrecioRow
                                     key={row.producto.id}
                                     row={row}
                                     listaId={id}
                                     tipoCambio={tipoCambio}
+                                    onPrecioUpdated={() => {
+                                        // Recargar solo precios sería ideal, por ahora recargamos todo para simpleza
+                                        loadData();
+                                    }}
                                 />
                             ))}
                         </tbody>
                     </table>
+
+                    {filteredRows.length === 0 && (
+                        <div className="text-center py-8 text-[var(--text-muted)]">
+                            No se encontraron productos para esta lista.
+                        </div>
+                    )}
                 </div>
             </Card>
         </PageContainer>
     );
 }
 
-function PrecioRow({ row, listaId, tipoCambio }: { row: ProductoPrecioRow, listaId: string, tipoCambio: number }) {
-    const [precio, setPrecio] = useState('');
-    const [moneda, setMoneda] = useState('ARS');
+function PrecioRow({ row, listaId, tipoCambio, onPrecioUpdated }: { row: ProductoPrecioRow, listaId: string, tipoCambio: number, onPrecioUpdated: () => void }) {
+    const [nuevoPrecio, setNuevoPrecio] = useState('');
+    const [moneda, setMoneda] = useState(row.moneda);
     const [loading, setLoading] = useState(false);
 
-    // Conversión en tiempo real
-    const conversion = moneda === 'ARS'
-        ? (precio ? (parseFloat(precio) / tipoCambio).toFixed(2) + ' USD' : '-')
-        : (precio ? (parseFloat(precio) * tipoCambio).toFixed(2) + ' ARS' : '-');
+    // Calcular preview si hay nuevo precio
+    const previewConversion = nuevoPrecio && !isNaN(parseFloat(nuevoPrecio))
+        ? (moneda === 'ARS'
+            ? `USD ${(parseFloat(nuevoPrecio) / tipoCambio).toFixed(2)}`
+            : `$ ${(parseFloat(nuevoPrecio) * tipoCambio).toFixed(2)}`)
+        : null;
 
     async function handleSave() {
-        if (!precio) return;
+        if (!nuevoPrecio) return;
         setLoading(true);
-        // Guardamos siempre el valor numérico, la moneda se debería guardar en DB schema nuevo
-        // Por ahora el servicio guarda el precio float, asumimos que el usuario hace la conversión mental o 
-        // implementamos moneda en precios_productos (ya está en schema pero no en updatePrecioProducto del todo)
-        // Para MVP, si es USD convertimos a ARS para guardar en base "ARS standard" o guardamos moneda.
-        // El usuario pidió "indico moneda y valor". Vamos a asumir que guardamos el valor tal cual y la moneda.
-        // UpdatePrecioProducto necesita aceptar Moneda.
 
-        // Simulación de guardado con lógica de conversión si el backend espera solso ARS (pero schema tiene moneda)
-        // Vamos a mandar el precio y moneda.
-
-        await updatePrecioProducto(listaId, row.producto.id, parseFloat(precio)); // TODO: Pasar moneda
-        setLoading(false);
-        setPrecio(''); // Limpiar tras guardar para feedback
-        // Idealmente mostrar check
+        try {
+            await updatePrecioProducto(listaId, row.producto.id, parseFloat(nuevoPrecio), moneda);
+            setNuevoPrecio('');
+            onPrecioUpdated(); // Trigger refresh
+        } catch (error) {
+            console.error(error);
+            alert('Error al guardar precio');
+        } finally {
+            setLoading(false);
+        }
     }
 
+    const fechaAct = row.precioActual?.fecha_vigencia
+        ? new Date(row.precioActual.fecha_vigencia).toLocaleDateString()
+        : '-';
+
     return (
-        <tr className="border-b border-[var(--border-default)] hover:bg-[var(--bg-secondary)]/50">
+        <tr className="hover:bg-[var(--bg-secondary)]/50 transition-colors">
             <td className="py-3 px-4">
                 <div className="font-medium text-[var(--text-primary)]">{row.producto.nombre}</div>
-                <div className="text-xs text-[var(--text-muted)]">{row.producto.codigo}</div>
+                <div className="text-xs text-[var(--text-muted)] font-mono">{row.producto.codigo}</div>
             </td>
             <td className="py-3 px-4 text-[var(--text-secondary)]">{row.producto.unidad_medida}</td>
+
+            {/* Precio Vigente */}
             <td className="py-3 px-4">
-                <input
-                    type="number"
-                    className="w-32 px-2 py-1 rounded border border-[var(--border-default)] bg-[var(--bg-primary)]"
-                    placeholder="0.00"
-                    value={precio}
-                    onChange={e => setPrecio(e.target.value)}
-                />
+                {row.precioActual ? (
+                    <div className="flex flex-col">
+                        <span className="font-semibold text-[var(--text-primary)]">
+                            {row.precioActual.moneda === 'USD' ? 'USD ' : '$ '}
+                            {row.precioActual.precio}
+                        </span>
+                    </div>
+                ) : (
+                    <span className="text-[var(--text-muted)] italic text-xs">Sin precio</span>
+                )}
+            </td>
+            <td className="py-3 px-4 text-xs text-[var(--text-muted)]">
+                {fechaAct}
+            </td>
+
+            {/* Inputs Nuevo Precio */}
+            <td className="py-3 px-4">
+                <div className="flex flex-col gap-1">
+                    <input
+                        type="number"
+                        className="w-28 px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:border-[var(--accent-gold)] focus:outline-none"
+                        placeholder="Nuevo..."
+                        value={nuevoPrecio}
+                        onChange={e => setNuevoPrecio(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                    />
+                    {previewConversion && (
+                        <span className="text-[10px] text-[var(--accent-gold)] text-right px-1">
+                            ≈ {previewConversion}
+                        </span>
+                    )}
+                </div>
             </td>
             <td className="py-3 px-4">
                 <select
-                    className="px-2 py-1 rounded border border-[var(--border-default)] bg-[var(--bg-primary)]"
+                    className="px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-primary)] text-[var(--text-primary)] text-sm focus:border-[var(--accent-gold)] focus:outline-none"
                     value={moneda}
                     onChange={e => setMoneda(e.target.value)}
                 >
-                    <option value="ARS">ARS</option>
+                    <option value="ARS">$ ARS</option>
                     <option value="USD">USD</option>
                 </select>
             </td>
-            <td className="py-3 px-4 font-mono text-xs text-[var(--accent-gold)]">
-                {conversion}
-            </td>
+
             <td className="py-3 px-4 text-right">
-                <Button size="sm" disabled={!precio || loading} onClick={handleSave}>
+                <Button
+                    size="sm"
+                    disabled={!nuevoPrecio || loading}
+                    onClick={handleSave}
+                    className={nuevoPrecio ? "bg-[var(--accent-gold)] text-black hover:bg-yellow-500" : ""}
+                >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 </Button>
             </td>
