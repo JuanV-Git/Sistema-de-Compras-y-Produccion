@@ -57,10 +57,12 @@ export default function DetalleListaPrecioPage() {
                     : productos.filter(p => p.tipo === 'PT' || p.tipo === 'SE');
 
                 for (const p of productosFiltrados) {
-                    const precioVigente = preciosVigentesMap[p.id];
+                    const historial = preciosVigentesMap[p.id] || [];
+                    const precioVigente = historial.length > 0 ? historial[0] : undefined;
 
                     rowsData.push({
                         producto: p,
+                        historial: historial,
                         precioActual: precioVigente, // Ahora sí tenemos el precio real
                         nuevoPrecio: '',
                         moneda: precioVigente?.moneda || 'ARS'
