@@ -12,6 +12,7 @@ import type { ListaPrecio, Producto, PrecioProducto } from '@/types/database';
 
 interface ProductoPrecioRow {
     producto: Producto;
+    historial: PrecioProducto[]; // Agregamos array de precios
     precioActual?: PrecioProducto;
     nuevoPrecio: string;
     moneda: string;
