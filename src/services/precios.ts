@@ -109,11 +109,10 @@ export async function getHistorialPrecios(listaId: string, productoId: string): 
 }
 
 /**
- * Obtiene todos los precios cargados en una lista.
- * Útil para mostrar la "foto" actual de precios.
- * Procesa en cliente para obtener el más reciente de cada producto.
+ * Obtiene todos los precios cargados en una lista, agrupados por producto.
+ * Retorna un mapa donde la key es productId y el valor es el array de histórico.
  */
-export async function getPreciosDeLista(listaId: string): Promise<Record<string, PrecioProducto>> {
+export async function getPreciosDeLista(listaId: string): Promise<Record<string, PrecioProducto[]>> {
     const url = `${SUPABASE_URL}/rest/v1/precios_productos?tenant_id=eq.${DEMO_TENANT_ID}&lista_id=eq.${listaId}&order=fecha_vigencia.desc`;
 
     const response = await fetch(url, {
@@ -128,16 +127,17 @@ export async function getPreciosDeLista(listaId: string): Promise<Record<string,
 
     const allPrecios: PrecioProducto[] = await response.json();
 
-    // Filtrar para quedarse solo con el más reciente de cada producto
-    const latestPrecios: Record<string, PrecioProducto> = {};
+    // Agrupar por producto
+    const preciosGrouped: Record<string, PrecioProducto[]> = {};
 
     for (const p of allPrecios) {
-        if (!latestPrecios[p.producto_id]) {
-            latestPrecios[p.producto_id] = p;
+        if (!preciosGrouped[p.producto_id]) {
+            preciosGrouped[p.producto_id] = [];
         }
+        preciosGrouped[p.producto_id].push(p);
     }
 
-    return latestPrecios;
+    return preciosGrouped;
 }
 
 /**
