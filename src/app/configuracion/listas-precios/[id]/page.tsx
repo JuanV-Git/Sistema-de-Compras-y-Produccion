@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Input } from '@/components/ui';
-import { ArrowLeft, Save, Loader2, Search, DollarSign } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Search, DollarSign, Download } from 'lucide-react';
 import { getListasPrecios, getHistorialPrecios, updatePrecioProducto, getPreciosDeLista } from '@/services/precios';
 import { getProductos } from '@/services/productos';
 import { getTipoCambio } from '@/services/configuracion';
@@ -73,6 +73,46 @@ export default function DetalleListaPrecioPage() {
         setLoading(false);
     }
 
+    const handleExport = () => {
+        if (!lista || rows.length === 0) return;
+
+        // Headers: Fecha, Codigo, Descripcion, Unidad, Moneda, Costo
+        const headers = ['Fecha', 'Codigo', 'Descripcion', 'Unidad', 'Moneda', 'Costo'];
+
+        // Data rows
+        const csvContent = rows.map(row => {
+            const fecha = row.precioActual?.fecha_vigencia
+                ? new Date(row.precioActual.fecha_vigencia).toLocaleDateString()
+                : '-';
+            const costo = row.precioActual?.precio || 0;
+            const moneda = row.precioActual?.moneda || 'ARS';
+
+            // Escape quotes and handle commas in text
+            return [
+                fecha,
+                `"${row.producto.codigo}"`,
+                `"${row.producto.nombre}"`,
+                row.producto.unidad_medida,
+                moneda,
+                costo
+            ].join(',');
+        });
+
+        // Combine with BOM for Excel utf-8 compatibility
+        const BOM = '\uFEFF';
+        const csvString = BOM + [headers.join(','), ...csvContent].join('\n');
+
+        // Create blob and download
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `${lista.nombre.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     if (loading) return <PageContainer title="Cargando..."><div className="flex justify-center p-12"><Loader2 className="animate-spin w-8 h-8 text-[var(--accent-gold)]" /></div></PageContainer>;
     if (!lista) return <PageContainer title="Lista no encontrada">Lista no existe</PageContainer>;
 
@@ -86,9 +126,14 @@ export default function DetalleListaPrecioPage() {
             title={lista.nombre}
             description={`Tipo: ${lista.tipo} · TC Ref: $${tipoCambio}`}
             actions={
-                <Button variant="ghost" onClick={() => router.back()}>
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Volver
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleExport} disabled={loading || rows.length === 0}>
+                        <Download className="w-4 h-4 mr-2" /> Exportar CSV
+                    </Button>
+                    <Button variant="ghost" onClick={() => router.back()}>
+                        <ArrowLeft className="w-4 h-4 mr-2" /> Volver
+                    </Button>
+                </div>
             }
         >
             <Card className="mb-6 ">
