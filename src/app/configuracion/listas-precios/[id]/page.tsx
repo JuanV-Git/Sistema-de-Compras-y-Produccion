@@ -127,7 +127,7 @@ export default function DetalleListaPrecioPage() {
             description={`Tipo: ${lista.tipo} · TC Ref: $${tipoCambio}`}
             actions={
                 <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleExport} disabled={loading || rows.length === 0}>
+                    <Button variant="secondary" onClick={handleExport} disabled={loading || rows.length === 0}>
                         <Download className="w-4 h-4 mr-2" /> Exportar CSV
                     </Button>
                     <Button variant="ghost" onClick={() => router.back()}>
