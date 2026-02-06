@@ -63,7 +63,7 @@ export default function DetalleListaPrecioPage() {
                     rowsData.push({
                         producto: p,
                         historial: historial,
-                        precioActual: precioVigente, // Ahora sí tenemos el precio real
+                        precioActual: precioVigente,
                         nuevoPrecio: '',
                         moneda: precioVigente?.moneda || 'ARS'
                     });
@@ -194,6 +194,7 @@ function PrecioRow({ row, listaId, tipoCambio, onPrecioUpdated }: { row: Product
     const [nuevoPrecio, setNuevoPrecio] = useState('');
     const [moneda, setMoneda] = useState(row.moneda);
     const [loading, setLoading] = useState(false);
+    const [expanded, setExpanded] = useState(false);
 
     // Calcular preview si hay nuevo precio
     const previewConversion = nuevoPrecio && !isNaN(parseFloat(nuevoPrecio))
@@ -223,69 +224,133 @@ function PrecioRow({ row, listaId, tipoCambio, onPrecioUpdated }: { row: Product
         : '-';
 
     return (
-        <tr className="hover:bg-[var(--bg-secondary)]/50 transition-colors">
-            <td className="py-3 px-4">
-                <div className="font-medium text-[var(--text-primary)]">{row.producto.nombre}</div>
-                <div className="text-xs text-[var(--text-muted)] font-mono">{row.producto.codigo}</div>
-            </td>
-            <td className="py-3 px-4 text-[var(--text-secondary)]">{row.producto.unidad_medida}</td>
-
-            {/* Precio Vigente */}
-            <td className="py-3 px-4">
-                {row.precioActual ? (
-                    <div className="flex flex-col">
-                        <span className="font-semibold text-[var(--text-primary)]">
-                            {row.precioActual.moneda === 'USD' ? 'USD ' : '$ '}
-                            {row.precioActual.precio}
-                        </span>
+        <>
+            <tr className={`hover:bg-[var(--bg-secondary)]/50 transition-colors ${expanded ? 'bg-[var(--bg-secondary)]/30 border-l-2 border-l-[var(--accent-gold)]' : ''}`}>
+                <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setExpanded(!expanded)}
+                            className="p-1 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                            title="Ver historial de precios"
+                        >
+                            {expanded ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6" /></svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                            )}
+                        </button>
+                        <div>
+                            <div className="font-medium text-[var(--text-primary)]">{row.producto.nombre}</div>
+                            <div className="text-xs text-[var(--text-muted)] font-mono">{row.producto.codigo}</div>
+                        </div>
                     </div>
-                ) : (
-                    <span className="text-[var(--text-muted)] italic text-xs">Sin precio</span>
-                )}
-            </td>
-            <td className="py-3 px-4 text-xs text-[var(--text-muted)]">
-                {fechaAct}
-            </td>
+                </td>
+                <td className="py-3 px-4 text-[var(--text-secondary)]">{row.producto.unidad_medida}</td>
 
-            {/* Inputs Nuevo Precio */}
-            <td className="py-3 px-4">
-                <div className="flex flex-col gap-1">
-                    <input
-                        type="number"
-                        className="w-28 px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:border-[var(--accent-gold)] focus:outline-none"
-                        placeholder="Nuevo..."
-                        value={nuevoPrecio}
-                        onChange={e => setNuevoPrecio(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-                    />
-                    {previewConversion && (
-                        <span className="text-[10px] text-[var(--accent-gold)] text-right px-1">
-                            ≈ {previewConversion}
-                        </span>
+                {/* Precio Vigente */}
+                <td className="py-3 px-4">
+                    {row.precioActual ? (
+                        <div className="flex flex-col">
+                            <span className="font-semibold text-[var(--text-primary)]">
+                                {row.precioActual.moneda === 'USD' ? 'USD ' : '$ '}
+                                {row.precioActual.precio}
+                            </span>
+                        </div>
+                    ) : (
+                        <span className="text-[var(--text-muted)] italic text-xs">Sin precio</span>
                     )}
-                </div>
-            </td>
-            <td className="py-3 px-4">
-                <select
-                    className="px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-primary)] text-[var(--text-primary)] text-sm focus:border-[var(--accent-gold)] focus:outline-none"
-                    value={moneda}
-                    onChange={e => setMoneda(e.target.value)}
-                >
-                    <option value="ARS">$ ARS</option>
-                    <option value="USD">USD</option>
-                </select>
-            </td>
+                </td>
+                <td className="py-3 px-4 text-xs text-[var(--text-muted)]">
+                    {fechaAct}
+                </td>
 
-            <td className="py-3 px-4 text-right">
-                <Button
-                    size="sm"
-                    disabled={!nuevoPrecio || loading}
-                    onClick={handleSave}
-                    className={nuevoPrecio ? "bg-[var(--accent-gold)] text-black hover:bg-yellow-500" : ""}
-                >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                </Button>
-            </td>
-        </tr>
+                {/* Inputs Nuevo Precio */}
+                <td className="py-3 px-4">
+                    <div className="flex flex-col gap-1">
+                        <input
+                            type="number"
+                            className="w-28 px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:border-[var(--accent-gold)] focus:outline-none"
+                            placeholder="Nuevo..."
+                            value={nuevoPrecio}
+                            onChange={e => setNuevoPrecio(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                        />
+                        {previewConversion && (
+                            <span className="text-[10px] text-[var(--accent-gold)] text-right px-1">
+                                ≈ {previewConversion}
+                            </span>
+                        )}
+                    </div>
+                </td>
+                <td className="py-3 px-4">
+                    <select
+                        className="px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-primary)] text-[var(--text-primary)] text-sm focus:border-[var(--accent-gold)] focus:outline-none"
+                        value={moneda}
+                        onChange={e => setMoneda(e.target.value)}
+                    >
+                        <option value="ARS">$ ARS</option>
+                        <option value="USD">USD</option>
+                    </select>
+                </td>
+
+                <td className="py-3 px-4 text-right">
+                    <Button
+                        size="sm"
+                        disabled={!nuevoPrecio || loading}
+                        onClick={handleSave}
+                        className={nuevoPrecio ? "bg-[var(--accent-gold)] text-black hover:bg-yellow-500" : ""}
+                    >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    </Button>
+                </td>
+            </tr>
+            {/* Historial Expandido */}
+            {expanded && (
+                <tr className="bg-[var(--bg-secondary)]/20">
+                    <td colSpan={7} className="p-0 border-b border-[var(--border-default)]">
+                        <div className="p-4 pl-14">
+                            <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                Historial de Precios
+                            </h4>
+                            {row.historial && row.historial.length > 0 ? (
+                                <div className="overflow-hidden rounded-md border border-[var(--border-default)]">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
+                                            <tr>
+                                                <th className="py-2 px-3 font-medium w-40">Fecha</th>
+                                                <th className="py-2 px-3 font-medium">Precio</th>
+                                                <th className="py-2 px-3 font-medium">Moneda</th>
+                                                <th className="py-2 px-3 font-medium">Usuario</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[var(--border-default)] bg-[var(--bg-secondary)]">
+                                            {row.historial.map((h) => (
+                                                <tr key={h.id}>
+                                                    <td className="py-2 px-3 text-[var(--text-primary)]">
+                                                        {new Date(h.fecha_vigencia).toLocaleString()}
+                                                    </td>
+                                                    <td className="py-2 px-3 font-medium text-[var(--text-primary)]">
+                                                        {h.precio}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-[var(--text-secondary)]">
+                                                        {h.moneda || 'ARS'}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-[var(--text-muted)] italic">
+                                                        {h.usuario_id ? 'Usuario #' + h.usuario_id.slice(0, 4) : 'Sistema'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-[var(--text-muted)] italic">No hay historial disponible.</p>
+                            )}
+                        </div>
+                    </td>
+                </tr>
+            )}
+        </>
     );
 }
