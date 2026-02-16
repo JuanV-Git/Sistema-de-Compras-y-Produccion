@@ -2,66 +2,56 @@
 // SERVICIO DE PRECIOS Y LISTAS
 // =====================================================
 
+import { createClient } from '@/lib/supabase/client';
 import type { ListaPrecio, PrecioProducto } from '@/types/database';
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-function getHeaders() {
-    return {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-    };
-}
 
 // =====================================================
 // LISTAS DE PRECIOS
 // =====================================================
 
 export async function getListasPrecios(tipo?: 'COSTO' | 'VENTA'): Promise<ListaPrecio[]> {
-    // tenant_id removido
-    let url = `${SUPABASE_URL}/rest/v1/listas_precios?activa=eq.true&order=nombre`;
+    const supabase = createClient();
+
+    let query = supabase
+        .from('listas_precios')
+        .select('*')
+        .eq('activa', true)
+        .order('nombre');
+
     if (tipo) {
-        url += `&tipo=eq.${tipo}`;
+        query = query.eq('tipo', tipo);
     }
 
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: getHeaders(),
-    });
+    const { data, error } = await query;
 
-    if (!response.ok) {
-        console.error('Error fetching listas precios:', await response.text());
+    if (error) {
+        console.error('Error fetching listas precios:', error);
         return [];
     }
 
-    return response.json();
+    return data || [];
 }
 
-export async function createListaPrecio(data: Pick<ListaPrecio, 'nombre' | 'tipo' | 'descripcion'>): Promise<ListaPrecio | null> {
+export async function createListaPrecio(data: Pick<ListaPrecio, 'nombre' | 'tipo' | 'descripcion'>): Promise<{ data: ListaPrecio | null, error: any }> {
+    const supabase = createClient();
+
     const insertData = {
         ...data,
-        // tenant_id removido
         activa: true
     };
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/listas_precios`, {
-        method: 'POST',
-        headers: {
-            ...getHeaders(),
-            'Prefer': 'return=representation',
-        },
-        body: JSON.stringify(insertData),
-    });
+    const { data: result, error } = await supabase
+        .from('listas_precios')
+        .insert(insertData)
+        .select()
+        .single();
 
-    if (!response.ok) {
-        console.error('Error creating lista precios:', await response.text());
-        return null;
+    if (error) {
+        console.error('Error creating lista precios:', error);
+        return { data: null, error };
     }
 
-    const result = await response.json();
-    return result[0] || null;
+    return { data: result, error: null };
 }
 
 // =====================================================
@@ -73,40 +63,47 @@ export async function createListaPrecio(data: Pick<ListaPrecio, 'nombre' | 'tipo
  * Busca el precio más reciente (por fecha_vigencia) para esa combinación.
  */
 export async function getPrecioProducto(listaId: string, productoId: string): Promise<PrecioProducto | null> {
-    // Ordenamos por fecha_vigencia descendente y tomamos el primero
-    // tenant_id removido
-    const url = `${SUPABASE_URL}/rest/v1/precios_productos?lista_id=eq.${listaId}&producto_id=eq.${productoId}&order=fecha_vigencia.desc&limit=1`;
+    const supabase = createClient();
 
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: getHeaders(),
-    });
+    const { data, error } = await supabase
+        .from('precios_productos')
+        .select('*')
+        .eq('lista_id', listaId)
+        .eq('producto_id', productoId)
+        .order('fecha_vigencia', { ascending: false })
+        .limit(1)
+        .single();
 
-    if (!response.ok) {
-        console.error('Error fetching precio producto:', await response.text());
+    if (error) {
+        // Ignoramos error PGRST116 (0 rows) si es solo que no hay precio
+        if (error.code !== 'PGRST116') {
+            console.error('Error fetching precio producto:', error);
+        }
         return null;
     }
 
-    const data = await response.json();
-    return data[0] || null;
+    return data;
 }
 
 /**
  * Obtiene el historial de precios de un producto en una lista
  */
 export async function getHistorialPrecios(listaId: string, productoId: string): Promise<PrecioProducto[]> {
-    const url = `${SUPABASE_URL}/rest/v1/precios_productos?lista_id=eq.${listaId}&producto_id=eq.${productoId}&order=fecha_vigencia.desc`;
+    const supabase = createClient();
 
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: getHeaders(),
-    });
+    const { data, error } = await supabase
+        .from('precios_productos')
+        .select('*')
+        .eq('lista_id', listaId)
+        .eq('producto_id', productoId)
+        .order('fecha_vigencia', { ascending: false });
 
-    if (!response.ok) {
+    if (error) {
+        console.error('Error fetching historial precios:', error);
         return [];
     }
 
-    return response.json();
+    return data || [];
 }
 
 /**
@@ -114,24 +111,23 @@ export async function getHistorialPrecios(listaId: string, productoId: string): 
  * Retorna un mapa donde la key es productId y el valor es el array de histórico.
  */
 export async function getPreciosDeLista(listaId: string): Promise<Record<string, PrecioProducto[]>> {
-    const url = `${SUPABASE_URL}/rest/v1/precios_productos?lista_id=eq.${listaId}&order=fecha_vigencia.desc`;
+    const supabase = createClient();
 
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: getHeaders(),
-    });
+    const { data, error } = await supabase
+        .from('precios_productos')
+        .select('*')
+        .eq('lista_id', listaId)
+        .order('fecha_vigencia', { ascending: false });
 
-    if (!response.ok) {
-        console.error('Error fetching precios lista:', await response.text());
+    if (error) {
+        console.error('Error fetching precios lista:', error);
         return {};
     }
-
-    const allPrecios: PrecioProducto[] = await response.json();
 
     // Agrupar por producto
     const preciosGrouped: Record<string, PrecioProducto[]> = {};
 
-    for (const p of allPrecios) {
+    for (const p of (data || [])) {
         if (!preciosGrouped[p.producto_id]) {
             preciosGrouped[p.producto_id] = [];
         }
@@ -149,12 +145,12 @@ export async function updatePrecioProducto(
     listaId: string,
     productoId: string,
     precio: number,
-    moneda: string = 'ARS', // Nuevo param
+    moneda: string = 'ARS',
     usuarioId?: string
 ): Promise<PrecioProducto | null> {
+    const supabase = createClient();
 
     const insertData = {
-        // tenant_id removido
         lista_id: listaId,
         producto_id: productoId,
         precio: precio,
@@ -163,26 +159,16 @@ export async function updatePrecioProducto(
         usuario_id: usuarioId
     };
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/precios_productos`, {
-        method: 'POST',
-        headers: {
-            ...getHeaders(),
-            'Prefer': 'return=representation',
-        },
-        body: JSON.stringify(insertData),
-    });
+    const { data, error } = await supabase
+        .from('precios_productos')
+        .insert(insertData)
+        .select()
+        .single();
 
-    if (!response.ok) {
-        console.error('Error updating precio:', await response.text());
+    if (error) {
+        console.error('Error updating precio:', error);
         return null;
     }
 
-    /* 
-       OPCIONAL: Aquí podríamos actualizar el campo 'costo_unitario' en la tabla productos
-       si la lista es la asignada como 'lista_costo_id' del producto, para mantener compatibilidad
-       hacia atrás sin romper todo. Lo haremos en un paso posterior si es necesario.
-    */
-
-    const result = await response.json();
-    return result[0] || null;
+    return data;
 }

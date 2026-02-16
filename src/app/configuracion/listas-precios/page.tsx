@@ -19,6 +19,7 @@ export default function ListasPreciosPage() {
     const [nombre, setNombre] = useState('');
     const [descripcion, setDescripcion] = useState('');
     const [tipo, setTipo] = useState<'COSTO' | 'VENTA'>('COSTO');
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         loadListas();
@@ -33,20 +34,39 @@ export default function ListasPreciosPage() {
 
     async function handleCreate(e: React.FormEvent) {
         e.preventDefault();
+        console.log('handleCreate STARTED'); // DEBUG
         setCreating(true);
+        setError(null);
 
-        const nuevaLista = await createListaPrecio({
-            nombre,
-            descripcion,
-            tipo
-        });
+        console.log('Payload:', { nombre, descripcion, tipo }); // DEBUG
 
-        if (nuevaLista) {
-            setListas([...listas, nuevaLista]);
-            setShowForm(false);
-            setNombre('');
-            setDescripcion('');
-            setTipo('COSTO');
+        try {
+            const { data: nuevaLista, error: createError } = await createListaPrecio({
+                nombre,
+                descripcion,
+                tipo
+            });
+
+            console.log('Result:', { nuevaLista, createError }); // DEBUG
+
+            if (createError) {
+                console.error('Create Error:', createError); // DEBUG
+                setError('Error al crear: ' + (createError.message || JSON.stringify(createError) || 'Intente nuevamente'));
+                setCreating(false);
+                return;
+            }
+
+            if (nuevaLista) {
+                console.log('Success, updating list'); // DEBUG
+                setListas([...listas, nuevaLista]);
+                setShowForm(false);
+                setNombre('');
+                setDescripcion('');
+                setTipo('COSTO');
+            }
+        } catch (err) {
+            console.error('CRITICAL ERROR in handleCreate:', err); // DEBUG
+            setError('Error crítico: ' + String(err));
         }
 
         setCreating(false);
@@ -69,6 +89,12 @@ export default function ListasPreciosPage() {
             {showForm && (
                 <Card className="p-6 bg-[var(--bg-secondary)] border-[var(--border-default)] animate-in fade-in slide-in-from-top-4">
                     <form onSubmit={handleCreate} className="space-y-4">
+                        {error && (
+                            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-500 text-sm">
+                                <AlertCircle className="w-4 h-4" />
+                                {error}
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-[var(--text-primary)]">Nombre de la Lista</label>
