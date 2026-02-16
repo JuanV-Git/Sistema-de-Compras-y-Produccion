@@ -12,7 +12,7 @@ import {
     addComponenteToReceta,
     removeComponente,
     updateRecetaCostos,
-    actualizarCostosRecetaDesdeListas, // Importar función
+    actualizarCostosRecetaDesdeInsumos, // Importar función
     type RecetaComponenteConProducto,
 } from '@/services/recetas';
 import { getProductos } from '@/services/productos';
@@ -99,7 +99,7 @@ export default function RecetaDetallePage() {
     async function handleUpdateCostos() {
         setUpdatingCostos(true);
         try {
-            const success = await actualizarCostosRecetaDesdeListas(recetaId);
+            const success = await actualizarCostosRecetaDesdeInsumos(recetaId);
             if (success) {
                 await loadData();
             } else {
