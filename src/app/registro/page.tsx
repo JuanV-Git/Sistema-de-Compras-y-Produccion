@@ -6,13 +6,7 @@ import Link from 'next/link';
 import { createBrowserClient } from '@/lib/supabase';
 import { notifyAdminNewLead } from '@/actions/notify-admin'; // Acción unificada
 import { Button } from '@/components/ui';
-import { UserPlus, Mail, Lock, Building2, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
-
-interface Tenant {
-    id: string;
-    nombre: string;
-    codigo: string;
-}
+import { UserPlus, Mail, Lock, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function RegistroPage() {
     const router = useRouter();
@@ -20,33 +14,9 @@ export default function RegistroPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [nombre, setNombre] = useState('');
-    const [tenantId, setTenantId] = useState('');
-    const [tenants, setTenants] = useState<Tenant[]>([]);
     const [loading, setLoading] = useState(false);
-    const [loadingTenants, setLoadingTenants] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
-
-    // Cargar lista de tenants
-    useEffect(() => {
-        async function loadTenants() {
-            const supabase = createBrowserClient();
-            const { data } = await supabase
-                .from('tenants')
-                .select('id, nombre, codigo')
-                .eq('activo', true)
-                .order('nombre');
-
-            if (data) {
-                setTenants(data);
-                if (data.length > 0) {
-                    setTenantId(data[0].id);
-                }
-            }
-            setLoadingTenants(false);
-        }
-        loadTenants();
-    }, []);
 
     async function handleRegister(e: React.FormEvent) {
         e.preventDefault();
@@ -78,11 +48,10 @@ export default function RegistroPage() {
             return;
         }
 
-        // 2. Crear registro en tabla usuarios
+        // 2. Crear registro en tabla usuarios (Sin tenant_id)
         const { error: userError } = await supabase
             .from('usuarios')
             .insert({
-                tenant_id: tenantId,
                 auth_user_id: authData.user.id,
                 email,
                 nombre,
@@ -99,7 +68,7 @@ export default function RegistroPage() {
             await notifyAdminNewLead({
                 nombre,
                 email,
-                empresa: tenants.find(t => t.id === tenantId)?.nombre || 'Empresa Desconocida'
+                empresa: 'Empresa Principal' // Default para Single Tenant
             });
         } catch (err) {
             console.error('Error enviando notificación de lead:', err);
@@ -214,36 +183,10 @@ export default function RegistroPage() {
                             </div>
                         </div>
 
-                        {/* Empresa */}
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                                <Building2 className="w-4 h-4 inline mr-1" />
-                                Empresa
-                            </label>
-                            {loadingTenants ? (
-                                <div className="px-4 py-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-muted)]">
-                                    Cargando empresas...
-                                </div>
-                            ) : (
-                                <select
-                                    value={tenantId}
-                                    onChange={(e) => setTenantId(e.target.value)}
-                                    required
-                                    className="w-full px-4 py-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)] transition-colors"
-                                >
-                                    {tenants.map((tenant) => (
-                                        <option key={tenant.id} value={tenant.id}>
-                                            {tenant.nombre} ({tenant.codigo})
-                                        </option>
-                                    ))}
-                                </select>
-                            )}
-                        </div>
-
                         <Button
                             type="submit"
                             className="w-full py-3"
-                            disabled={loading || loadingTenants}
+                            disabled={loading}
                         >
                             {loading ? (
                                 <Loader2 className="w-5 h-5 animate-spin" />

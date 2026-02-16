@@ -10,6 +10,7 @@ import { getProductos } from '@/services/productos';
 import { getTipoCambio } from '@/services/configuracion';
 import type { ListaPrecio, Producto, PrecioProducto } from '@/types/database';
 
+
 interface ProductoPrecioRow {
     producto: Producto;
     historial: PrecioProducto[]; // Agregamos array de precios
@@ -22,6 +23,7 @@ export default function DetalleListaPrecioPage() {
     const params = useParams();
     const router = useRouter();
     const id = params.id as string;
+
 
     const [lista, setLista] = useState<ListaPrecio | null>(null);
     const [rows, setRows] = useState<ProductoPrecioRow[]>([]);

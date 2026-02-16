@@ -10,7 +10,6 @@ import { updateProducto } from './productos'; // Importar updateProducto para pr
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const DEMO_TENANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
 function getHeaders() {
     return {
@@ -29,7 +28,7 @@ function getHeaders() {
  */
 export async function getRecetas(): Promise<Receta[]> {
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas?tenant_id=eq.${DEMO_TENANT_ID}&order=codigo`,
+        `${SUPABASE_URL}/rest/v1/recetas?order=codigo`,
         {
             method: 'GET',
             headers: getHeaders(),
@@ -71,7 +70,7 @@ export async function getRecetaById(id: string): Promise<Receta | null> {
  */
 export async function getNextCodigoReceta(): Promise<string> {
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas?tenant_id=eq.${DEMO_TENANT_ID}&select=codigo&order=codigo.desc&limit=100`,
+        `${SUPABASE_URL}/rest/v1/recetas?select=codigo&order=codigo.desc&limit=100`,
         {
             method: 'GET',
             headers: getHeaders(),
@@ -114,7 +113,7 @@ export type CreateRecetaData = {
 export async function createReceta(receta: CreateRecetaData): Promise<Receta | null> {
     const insertData = {
         ...receta,
-        tenant_id: DEMO_TENANT_ID,
+        // tenant_id removido
         version: receta.version || 1,
         costo_total: 0,
         costo_por_unidad: 0,
@@ -413,7 +412,7 @@ export async function recalcularCostosMasivo(): Promise<{ success: boolean, mess
 
 export interface RecetaComponenteConProducto {
     id: string;
-    tenant_id: string;
+    // tenant_id removido
     receta_id: string;
     producto_id: string;
     cantidad: number;
@@ -475,7 +474,7 @@ export type CreateComponenteData = {
 export async function addComponenteToReceta(data: CreateComponenteData): Promise<RecetaComponente | null> {
     const insertData = {
         ...data,
-        tenant_id: DEMO_TENANT_ID,
+        // tenant_id removido
         orden: data.orden || 0,
         costo_subtotal: data.cantidad * data.costo_unitario,
     };

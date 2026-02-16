@@ -9,7 +9,6 @@ interface AuthContextType {
     session: Session | null;
     loading: boolean;
     signOut: () => Promise<void>;
-    tenantId: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,7 +17,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
-    const [tenantId, setTenantId] = useState<string | null>(null);
 
     useEffect(() => {
         const supabase = createBrowserClient();
@@ -27,13 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             setUser(session?.user ?? null);
-
-            // Si hay usuario, obtener su tenant_id
-            if (session?.user) {
-                fetchUserTenant(session.user.id);
-            } else {
-                setLoading(false);
-            }
+            setLoading(false);
         });
 
         // Escuchar cambios de sesión
@@ -41,13 +33,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             async (event, session) => {
                 setSession(session);
                 setUser(session?.user ?? null);
-
-                if (session?.user) {
-                    await fetchUserTenant(session.user.id);
-                } else {
-                    setTenantId(null);
-                }
-
                 setLoading(false);
             }
         );
@@ -55,35 +40,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => subscription.unsubscribe();
     }, []);
 
-    async function fetchUserTenant(authUserId: string) {
-        const supabase = createBrowserClient();
-
-        const { data, error } = await supabase
-            .from('usuarios')
-            .select('tenant_id')
-            .eq('auth_user_id', authUserId)
-            .single();
-
-        if (data) {
-            setTenantId(data.tenant_id);
-        } else {
-            // Fallback al tenant demo si no hay registro
-            setTenantId('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11');
-        }
-
-        setLoading(false);
-    }
-
     async function signOut() {
         const supabase = createBrowserClient();
         await supabase.auth.signOut();
         setUser(null);
         setSession(null);
-        setTenantId(null);
     }
 
     return (
-        <AuthContext.Provider value={{ user, session, loading, signOut, tenantId }}>
+        <AuthContext.Provider value={{ user, session, loading, signOut }}>
             {children}
         </AuthContext.Provider>
     );

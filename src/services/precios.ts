@@ -6,7 +6,6 @@ import type { ListaPrecio, PrecioProducto } from '@/types/database';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const DEMO_TENANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
 function getHeaders() {
     return {
@@ -21,7 +20,8 @@ function getHeaders() {
 // =====================================================
 
 export async function getListasPrecios(tipo?: 'COSTO' | 'VENTA'): Promise<ListaPrecio[]> {
-    let url = `${SUPABASE_URL}/rest/v1/listas_precios?tenant_id=eq.${DEMO_TENANT_ID}&activa=eq.true&order=nombre`;
+    // tenant_id removido
+    let url = `${SUPABASE_URL}/rest/v1/listas_precios?activa=eq.true&order=nombre`;
     if (tipo) {
         url += `&tipo=eq.${tipo}`;
     }
@@ -42,7 +42,7 @@ export async function getListasPrecios(tipo?: 'COSTO' | 'VENTA'): Promise<ListaP
 export async function createListaPrecio(data: Pick<ListaPrecio, 'nombre' | 'tipo' | 'descripcion'>): Promise<ListaPrecio | null> {
     const insertData = {
         ...data,
-        tenant_id: DEMO_TENANT_ID,
+        // tenant_id removido
         activa: true
     };
 
@@ -74,7 +74,8 @@ export async function createListaPrecio(data: Pick<ListaPrecio, 'nombre' | 'tipo
  */
 export async function getPrecioProducto(listaId: string, productoId: string): Promise<PrecioProducto | null> {
     // Ordenamos por fecha_vigencia descendente y tomamos el primero
-    const url = `${SUPABASE_URL}/rest/v1/precios_productos?tenant_id=eq.${DEMO_TENANT_ID}&lista_id=eq.${listaId}&producto_id=eq.${productoId}&order=fecha_vigencia.desc&limit=1`;
+    // tenant_id removido
+    const url = `${SUPABASE_URL}/rest/v1/precios_productos?lista_id=eq.${listaId}&producto_id=eq.${productoId}&order=fecha_vigencia.desc&limit=1`;
 
     const response = await fetch(url, {
         method: 'GET',
@@ -94,7 +95,7 @@ export async function getPrecioProducto(listaId: string, productoId: string): Pr
  * Obtiene el historial de precios de un producto en una lista
  */
 export async function getHistorialPrecios(listaId: string, productoId: string): Promise<PrecioProducto[]> {
-    const url = `${SUPABASE_URL}/rest/v1/precios_productos?tenant_id=eq.${DEMO_TENANT_ID}&lista_id=eq.${listaId}&producto_id=eq.${productoId}&order=fecha_vigencia.desc`;
+    const url = `${SUPABASE_URL}/rest/v1/precios_productos?lista_id=eq.${listaId}&producto_id=eq.${productoId}&order=fecha_vigencia.desc`;
 
     const response = await fetch(url, {
         method: 'GET',
@@ -113,7 +114,7 @@ export async function getHistorialPrecios(listaId: string, productoId: string): 
  * Retorna un mapa donde la key es productId y el valor es el array de histórico.
  */
 export async function getPreciosDeLista(listaId: string): Promise<Record<string, PrecioProducto[]>> {
-    const url = `${SUPABASE_URL}/rest/v1/precios_productos?tenant_id=eq.${DEMO_TENANT_ID}&lista_id=eq.${listaId}&order=fecha_vigencia.desc`;
+    const url = `${SUPABASE_URL}/rest/v1/precios_productos?lista_id=eq.${listaId}&order=fecha_vigencia.desc`;
 
     const response = await fetch(url, {
         method: 'GET',
@@ -153,7 +154,7 @@ export async function updatePrecioProducto(
 ): Promise<PrecioProducto | null> {
 
     const insertData = {
-        tenant_id: DEMO_TENANT_ID,
+        // tenant_id removido
         lista_id: listaId,
         producto_id: productoId,
         precio: precio,

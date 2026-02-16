@@ -5,7 +5,6 @@
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const DEMO_TENANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
 function getHeaders() {
     return {
@@ -17,7 +16,7 @@ function getHeaders() {
 
 export interface Proveedor {
     id: string;
-    tenant_id: string;
+    // tenant_id removido
     codigo: string;
     nombre: string;
     razon_social?: string;
@@ -35,14 +34,14 @@ export interface Proveedor {
     updated_at: string;
 }
 
-export type CreateProveedorData = Omit<Proveedor, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>;
+export type CreateProveedorData = Omit<Proveedor, 'id' | 'created_at' | 'updated_at'>;
 
 /**
  * Obtiene todos los proveedores activos
  */
 export async function getProveedores(): Promise<Proveedor[]> {
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/proveedores?tenant_id=eq.${DEMO_TENANT_ID}&activo=eq.true&order=nombre`,
+        `${SUPABASE_URL}/rest/v1/proveedores?activo=eq.true&order=nombre`,
         {
             method: 'GET',
             headers: getHeaders(),
@@ -64,7 +63,7 @@ export async function getProveedores(): Promise<Proveedor[]> {
 export async function getNextCodigoProveedor(): Promise<string> {
     // Obtener todos los proveedores (incluso inactivos) para no reusar códigos
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/proveedores?tenant_id=eq.${DEMO_TENANT_ID}&select=codigo&order=codigo.desc&limit=100`,
+        `${SUPABASE_URL}/rest/v1/proveedores?select=codigo&order=codigo.desc&limit=100`,
         {
             method: 'GET',
             headers: getHeaders(),
@@ -119,7 +118,7 @@ export async function getProveedorById(id: string): Promise<Proveedor | null> {
 export async function createProveedor(proveedor: CreateProveedorData): Promise<Proveedor | null> {
     const insertData = {
         ...proveedor,
-        tenant_id: DEMO_TENANT_ID,
+        // tenant_id removido
     };
 
     const response = await fetch(

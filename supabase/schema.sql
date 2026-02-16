@@ -1,28 +1,26 @@
 -- =====================================================
--- ESQUEMA SUPABASE - SISTEMA DE GESTIÓN MULTI-TENANT
+-- ESQUEMA SUPABASE - SISTEMA SINGLE-TENANT (DEDICADO)
 -- =====================================================
 
 -- =====================================================
--- TABLA: TENANTS (Empresas/Clientes)
+-- TABLA: CONFIGURACION (Singleton)
 -- =====================================================
-CREATE TABLE IF NOT EXISTS tenants (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nombre TEXT NOT NULL,
-  codigo TEXT UNIQUE NOT NULL,
-  email TEXT,
-  telefono TEXT,
-  direccion TEXT,
-  activo BOOLEAN DEFAULT true,
+CREATE TABLE IF NOT EXISTS configuracion (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- Solo debería haber 1 fila
+  nombre_empresa TEXT NOT NULL DEFAULT 'Mi Empresa',
+  moneda_principal TEXT DEFAULT 'ARS',
+  logo_url TEXT,
+  theme_color TEXT DEFAULT '#eab308',
+  params JSONB DEFAULT '{}'::jsonb, -- Configs extras
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =====================================================
--- TABLA: USUARIOS (con tenant)
+-- TABLA: USUARIOS
 -- =====================================================
 CREATE TABLE IF NOT EXISTS usuarios (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
   auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
   nombre TEXT NOT NULL,
@@ -37,8 +35,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS productos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
-  codigo TEXT NOT NULL,
+  codigo TEXT UNIQUE NOT NULL, -- Unique en todo el sistema (porque es single tenant)
   nombre TEXT NOT NULL,
   descripcion TEXT,
   tipo TEXT NOT NULL, -- MP, SE, PT, ENVASE, ETIQUETA
@@ -54,8 +51,7 @@ CREATE TABLE IF NOT EXISTS productos (
   -- Metadata
   activo BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(tenant_id, codigo)
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =====================================================
@@ -63,8 +59,7 @@ CREATE TABLE IF NOT EXISTS productos (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS proveedores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
-  codigo TEXT NOT NULL,
+  codigo TEXT UNIQUE NOT NULL,
   nombre TEXT NOT NULL,
   razon_social TEXT,
   cuit TEXT,
@@ -75,13 +70,12 @@ CREATE TABLE IF NOT EXISTS proveedores (
   contacto_email TEXT,
   contacto_telefono TEXT,
   -- Condiciones
-  condicion_pago TEXT, -- Contado, 30 días, etc.
+  condicion_pago TEXT,
   plazo_entrega_dias INTEGER DEFAULT 15,
   -- Metadata
   activo BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(tenant_id, codigo)
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =====================================================
@@ -89,7 +83,6 @@ CREATE TABLE IF NOT EXISTS proveedores (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS productos_proveedores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
   producto_id UUID REFERENCES productos(id) ON DELETE CASCADE,
   proveedor_id UUID REFERENCES proveedores(id) ON DELETE CASCADE,
   codigo_alternativo TEXT,
@@ -100,26 +93,51 @@ CREATE TABLE IF NOT EXISTS productos_proveedores (
 );
 
 -- =====================================================
+-- TABLA: LISTAS_PRECIOS (Venta/Costo)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS listas_precios (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nombre TEXT NOT NULL,
+  tipo TEXT NOT NULL DEFAULT 'VENTA', -- COSTO o VENTA
+  descripcion TEXT,
+  activa BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- TABLA: PRECIOS_PRODUCTOS (Historial)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS precios_productos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lista_id UUID REFERENCES listas_precios(id) ON DELETE CASCADE,
+  producto_id UUID REFERENCES productos(id) ON DELETE CASCADE,
+  precio NUMERIC(12,4) NOT NULL,
+  moneda TEXT DEFAULT 'ARS',
+  fecha_vigencia TIMESTAMPTZ DEFAULT NOW(),
+  usuario_id UUID REFERENCES usuarios(id), -- Auditoría opcional
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
 -- TABLA: RECETAS
 -- =====================================================
 CREATE TABLE IF NOT EXISTS recetas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
   codigo TEXT NOT NULL,
   nombre TEXT NOT NULL,
   version INTEGER DEFAULT 1,
-  producto_id UUID REFERENCES productos(id), -- Producto que produce
+  producto_id UUID REFERENCES productos(id),
   cantidad_producida NUMERIC(12,2) NOT NULL,
   unidad_medida TEXT NOT NULL,
-  estado TEXT DEFAULT 'ACTIVA', -- ACTIVA, INACTIVA, BORRADOR
+  estado TEXT DEFAULT 'ACTIVA',
   -- Costos calculados
   costo_total NUMERIC(12,4) DEFAULT 0,
   costo_por_unidad NUMERIC(12,4) DEFAULT 0,
-  -- Metadata
   observaciones TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(tenant_id, codigo, version)
+  UNIQUE(codigo, version)
 );
 
 -- =====================================================
@@ -127,7 +145,6 @@ CREATE TABLE IF NOT EXISTS recetas (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS receta_componentes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
   receta_id UUID REFERENCES recetas(id) ON DELETE CASCADE,
   producto_id UUID REFERENCES productos(id),
   cantidad NUMERIC(12,4) NOT NULL,
@@ -136,6 +153,7 @@ CREATE TABLE IF NOT EXISTS receta_componentes (
   -- Costo calculado
   costo_unitario NUMERIC(12,4) DEFAULT 0,
   costo_subtotal NUMERIC(12,4) DEFAULT 0,
+  instrucciones TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -144,22 +162,18 @@ CREATE TABLE IF NOT EXISTS receta_componentes (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ordenes_compra (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
-  numero TEXT NOT NULL,
+  numero TEXT UNIQUE NOT NULL,
   proveedor_id UUID REFERENCES proveedores(id),
-  estado TEXT DEFAULT 'ABIERTA', -- ABIERTA, CERRADA, CANCELADA
+  estado TEXT DEFAULT 'ABIERTA',
   fecha_emision DATE DEFAULT CURRENT_DATE,
   fecha_entrega_estimada DATE,
-  -- Totales
   subtotal NUMERIC(12,2) DEFAULT 0,
   iva NUMERIC(12,2) DEFAULT 0,
   total NUMERIC(12,2) DEFAULT 0,
-  -- Metadata
   observaciones TEXT,
   usuario_creacion UUID REFERENCES usuarios(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(tenant_id, numero)
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =====================================================
@@ -167,14 +181,13 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ordenes_compra_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
   orden_compra_id UUID REFERENCES ordenes_compra(id) ON DELETE CASCADE,
   producto_id UUID REFERENCES productos(id),
   cantidad_pedida NUMERIC(12,2) NOT NULL,
   cantidad_recibida NUMERIC(12,2) DEFAULT 0,
   precio_unitario NUMERIC(12,4) NOT NULL,
   subtotal NUMERIC(12,2) NOT NULL,
-  estado TEXT DEFAULT 'PENDIENTE', -- PENDIENTE, COMPLETADO, CANCELADO
+  estado TEXT DEFAULT 'PENDIENTE',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -183,30 +196,24 @@ CREATE TABLE IF NOT EXISTS ordenes_compra_items (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ordenes_produccion (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
-  numero TEXT NOT NULL,
+  numero TEXT UNIQUE NOT NULL,
   receta_id UUID REFERENCES recetas(id),
   producto_id UUID REFERENCES productos(id),
-  estado TEXT DEFAULT 'ABIERTA', -- ABIERTA, EN_PROCESO, CERRADA, CANCELADA
+  estado TEXT DEFAULT 'ABIERTA',
   cantidad_programada NUMERIC(12,2) NOT NULL,
   cantidad_producida NUMERIC(12,2) DEFAULT 0,
   unidad_medida TEXT NOT NULL,
-  -- Costos
   costo_teorico_total NUMERIC(12,4) DEFAULT 0,
   costo_real_total NUMERIC(12,4) DEFAULT 0,
   variacion_porcentaje NUMERIC(6,2) DEFAULT 0,
-  -- Fechas
   fecha_creacion TIMESTAMPTZ DEFAULT NOW(),
   fecha_inicio TIMESTAMPTZ,
   fecha_cierre TIMESTAMPTZ,
-  -- Usuarios
   usuario_creacion UUID REFERENCES usuarios(id),
   usuario_cierre UUID REFERENCES usuarios(id),
-  -- Metadata
   observaciones TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(tenant_id, numero)
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =====================================================
@@ -214,7 +221,6 @@ CREATE TABLE IF NOT EXISTS ordenes_produccion (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ordenes_produccion_consumos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
   orden_produccion_id UUID REFERENCES ordenes_produccion(id) ON DELETE CASCADE,
   producto_id UUID REFERENCES productos(id),
   cantidad_teorica NUMERIC(12,4) NOT NULL,
@@ -231,11 +237,10 @@ CREATE TABLE IF NOT EXISTS ordenes_produccion_consumos (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS movimientos_stock (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
   producto_id UUID REFERENCES productos(id),
-  tipo_movimiento TEXT NOT NULL, -- ENTRADA, SALIDA, AJUSTE_POSITIVO, AJUSTE_NEGATIVO
-  origen TEXT NOT NULL, -- REMITO_COMPRA, ORDEN_PRODUCCION, AJUSTE_MANUAL
-  documento_id UUID, -- ID de OC u OP
+  tipo_movimiento TEXT NOT NULL,
+  origen TEXT NOT NULL,
+  documento_id UUID,
   documento_numero TEXT,
   cantidad NUMERIC(12,4) NOT NULL,
   stock_anterior NUMERIC(12,4) NOT NULL,
@@ -248,81 +253,33 @@ CREATE TABLE IF NOT EXISTS movimientos_stock (
 );
 
 -- =====================================================
--- ÍNDICES PARA PERFORMANCE
--- =====================================================
-CREATE INDEX IF NOT EXISTS idx_productos_tenant ON productos(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_productos_tipo ON productos(tenant_id, tipo);
-CREATE INDEX IF NOT EXISTS idx_proveedores_tenant ON proveedores(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_recetas_tenant ON recetas(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_ordenes_compra_tenant ON ordenes_compra(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_ordenes_compra_estado ON ordenes_compra(tenant_id, estado);
-CREATE INDEX IF NOT EXISTS idx_ordenes_produccion_tenant ON ordenes_produccion(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_ordenes_produccion_estado ON ordenes_produccion(tenant_id, estado);
-CREATE INDEX IF NOT EXISTS idx_movimientos_stock_producto ON movimientos_stock(tenant_id, producto_id);
-CREATE INDEX IF NOT EXISTS idx_movimientos_stock_fecha ON movimientos_stock(tenant_id, created_at DESC);
-
--- =====================================================
--- ROW LEVEL SECURITY (RLS)
+-- ROW LEVEL SECURITY (RLS) - SIMPLE
 -- =====================================================
 
--- Habilitar RLS en todas las tablas
+-- Habilitar RLS
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE proveedores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recetas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE receta_componentes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ordenes_compra ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ordenes_compra_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ordenes_produccion ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ordenes_produccion_consumos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movimientos_stock ENABLE ROW LEVEL SECURITY;
 
--- NOTA: Las políticas de RLS se configuran después de crear las funciones
--- de autenticación que determinan el tenant_id del usuario actual.
+-- Política Genérica: Solo usuarios autenticados pueden ver todo (es su DB privada)
+CREATE POLICY "acceso_total_autenticado_productos" ON productos
+  FOR ALL USING (auth.role() = 'authenticated');
 
--- =====================================================
--- FUNCIÓN: Obtener tenant_id del usuario actual
--- =====================================================
-CREATE OR REPLACE FUNCTION get_user_tenant_id()
-RETURNS UUID AS $$
-  SELECT tenant_id FROM usuarios WHERE auth_user_id = auth.uid()
-$$ LANGUAGE SQL SECURITY DEFINER;
+CREATE POLICY "acceso_total_autenticado_proveedores" ON proveedores
+  FOR ALL USING (auth.role() = 'authenticated');
 
--- =====================================================
--- POLÍTICAS RLS (una por tabla)
--- =====================================================
+CREATE POLICY "acceso_total_autenticado_recetas" ON recetas
+  FOR ALL USING (auth.role() = 'authenticated');
+  
+CREATE POLICY "acceso_total_autenticado_compras" ON ordenes_compra
+  FOR ALL USING (auth.role() = 'authenticated');
 
--- Productos
-CREATE POLICY "tenant_isolation_productos" ON productos
-  FOR ALL USING (tenant_id = get_user_tenant_id());
+CREATE POLICY "acceso_total_autenticado_produccion" ON ordenes_produccion
+  FOR ALL USING (auth.role() = 'authenticated');
 
--- Proveedores
-CREATE POLICY "tenant_isolation_proveedores" ON proveedores
-  FOR ALL USING (tenant_id = get_user_tenant_id());
+CREATE POLICY "acceso_total_autenticado_stock" ON movimientos_stock
+  FOR ALL USING (auth.role() = 'authenticated');
 
--- Recetas
-CREATE POLICY "tenant_isolation_recetas" ON recetas
-  FOR ALL USING (tenant_id = get_user_tenant_id());
-
--- Receta Componentes
-CREATE POLICY "tenant_isolation_receta_componentes" ON receta_componentes
-  FOR ALL USING (tenant_id = get_user_tenant_id());
-
--- Órdenes de Compra
-CREATE POLICY "tenant_isolation_ordenes_compra" ON ordenes_compra
-  FOR ALL USING (tenant_id = get_user_tenant_id());
-
--- Órdenes de Compra Items
-CREATE POLICY "tenant_isolation_ordenes_compra_items" ON ordenes_compra_items
-  FOR ALL USING (tenant_id = get_user_tenant_id());
-
--- Órdenes de Producción
-CREATE POLICY "tenant_isolation_ordenes_produccion" ON ordenes_produccion
-  FOR ALL USING (tenant_id = get_user_tenant_id());
-
--- Órdenes de Producción Consumos
-CREATE POLICY "tenant_isolation_ordenes_produccion_consumos" ON ordenes_produccion_consumos
-  FOR ALL USING (tenant_id = get_user_tenant_id());
-
--- Movimientos de Stock
-CREATE POLICY "tenant_isolation_movimientos_stock" ON movimientos_stock
-  FOR ALL USING (tenant_id = get_user_tenant_id());

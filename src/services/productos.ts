@@ -2,17 +2,14 @@
 // SERVICIO DE API REST - PRODUCTOS
 // =====================================================
 // Usando fetch directo a la API REST de Supabase
-// en lugar del SDK que tiene problemas de AbortError
 
 import type { Producto } from '@/types/database';
-import { TipoProductoPrefixes, type TipoProducto } from '@/types/database'; // Importar prefijos
-
+import { TipoProductoPrefixes, type TipoProducto } from '@/types/database';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const DEMO_TENANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
-// Headers comunes para todas las solicitudes
+// Headers comunes
 function getHeaders() {
     return {
         'apikey': SUPABASE_ANON_KEY,
@@ -21,12 +18,11 @@ function getHeaders() {
     };
 }
 
-// Re-exportar el tipo para uso externo
 export type { Producto };
 
-import { getPrecioProducto } from './precios'; // Importar servicio de precios
+import { getPrecioProducto } from './precios';
 
-export type CreateProductoData = Omit<Producto, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>;
+export type CreateProductoData = Omit<Producto, 'id' | 'created_at' | 'updated_at'>;
 
 export interface ProductoConPrecio extends Producto {
     moneda_costo?: string;
@@ -34,11 +30,11 @@ export interface ProductoConPrecio extends Producto {
 }
 
 /**
- * Obtiene todos los productos del tenant actual
+ * Obtiene todos los productos
  */
 export async function getProductos(): Promise<Producto[]> {
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?tenant_id=eq.${DEMO_TENANT_ID}&activo=eq.true&order=codigo`,
+        `${SUPABASE_URL}/rest/v1/productos?activo=eq.true&order=codigo`,
         {
             method: 'GET',
             headers: getHeaders(),
@@ -79,7 +75,7 @@ export async function getProductoById(id: string): Promise<Producto | null> {
  */
 export async function getProductosPorTipo(tipo: string): Promise<Producto[]> {
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?tenant_id=eq.${DEMO_TENANT_ID}&tipo=eq.${tipo}&activo=eq.true&order=codigo`,
+        `${SUPABASE_URL}/rest/v1/productos?tipo=eq.${tipo}&activo=eq.true&order=codigo`,
         {
             method: 'GET',
             headers: getHeaders(),
@@ -95,43 +91,33 @@ export async function getProductosPorTipo(tipo: string): Promise<Producto[]> {
 }
 
 /**
- * Genera el siguiente código de producto disponible para un tipo específico
- * Formato: MP-001, SE-001, PT-001, ENVASE-001, ETIQUETA-001
+ * Genera el siguiente código de producto
  */
 export async function getNextCodigoProducto(tipo: string): Promise<string> {
-    // Usar prefijos centralizados
-    // @ts-ignore - Tipo 'string' puede no ser key valida si viene sucio, pero asumimos que viene bien
+    // @ts-ignore
     const prefix = TipoProductoPrefixes[tipo as TipoProducto] || tipo;
 
-    // Obtener todos los productos del tipo (incluso inactivos) para no reusar códigos
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?tenant_id=eq.${DEMO_TENANT_ID}&tipo=eq.${tipo}&select=codigo&order=codigo.desc&limit=100`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
+        `${SUPABASE_URL}/rest/v1/productos?tipo=eq.${tipo}&select=codigo&order=codigo.desc&limit=1`,
+        { method: 'GET', headers: getHeaders() }
     );
 
-    if (!response.ok) {
-        return `${prefix}-001`;
-    }
-
-    const productos = await response.json();
-
-    // Buscar el número más alto para este tipo
     let maxNum = 0;
-    // Regex para buscar códigos que empiecen con el prefijo correcto
-    const regex = new RegExp(`^${prefix}-(\\d+)$`);
+    if (response.ok) {
+        const productos = await response.json();
+        const regex = new RegExp(`^${prefix}-(\\d+)$`);
 
-    for (const p of productos) {
-        const match = p.codigo?.match(regex);
-        if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxNum) maxNum = num;
+        for (const p of productos) {
+            const match = p.codigo?.match(regex);
+            if (match) {
+                const num = parseInt(match[1], 10);
+                if (num > maxNum) maxNum = num;
+            }
         }
+    } else {
+        // Fallback si falla query, empezamos en 1
     }
 
-    // Siguiente número
     const nextNum = maxNum + 1;
     return `${prefix}-${String(nextNum).padStart(3, '0')}`;
 }
@@ -172,13 +158,7 @@ export async function updateProductoStock(id: string, nuevoStock: number): Promi
  * Crea un nuevo producto
  */
 export async function createProducto(producto: CreateProductoData): Promise<Producto | null> {
-    const insertData = {
-        ...producto,
-        tenant_id: DEMO_TENANT_ID,
-    };
-
-    console.log('Creating producto with data:', insertData);
-
+    // Ya no inyectamos tenant_id
     const response = await fetch(
         `${SUPABASE_URL}/rest/v1/productos`,
         {
@@ -187,7 +167,7 @@ export async function createProducto(producto: CreateProductoData): Promise<Prod
                 ...getHeaders(),
                 'Prefer': 'return=representation',
             },
-            body: JSON.stringify(insertData),
+            body: JSON.stringify(producto),
         }
     );
 
@@ -198,7 +178,6 @@ export async function createProducto(producto: CreateProductoData): Promise<Prod
     }
 
     const data = await response.json();
-    console.log('Producto created successfully:', data);
     return data[0] || data;
 }
 
@@ -258,14 +237,11 @@ export async function deleteProducto(id: string): Promise<boolean> {
 }
 
 /**
- * Obtiene todos los productos con su precio vigente (si tienen lista asignada)
- * Resuelve el problema de moneda faltante en dropdowns.
+ * Obtiene todos los productos con su precio vigente
  */
 export async function getProductosConPrecios(): Promise<ProductoConPrecio[]> {
     const productos = await getProductos();
 
-    // Obtener precios en paralelo (optimizable luego con un join en Supabase si fuera RPC)
-    // Por ahora hacemos un Promise.all mapeado, idealmente sería un solo query pero REST es limitado en joins profundos con lógica de "vigente".
     const productosConPrecio = await Promise.all(productos.map(async (p) => {
         let moneda = 'ARS';
         let costo = p.costo_unitario;

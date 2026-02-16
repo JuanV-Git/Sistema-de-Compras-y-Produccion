@@ -6,7 +6,6 @@
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const DEMO_TENANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
 function getHeaders() {
     return {
@@ -18,7 +17,7 @@ function getHeaders() {
 
 export interface ProductoProveedor {
     id: string;
-    tenant_id: string;
+    // tenant_id removido
     producto_id: string;
     proveedor_id: string;
     codigo_alternativo?: string;
@@ -91,7 +90,7 @@ export async function getProductosByProveedor(proveedorId: string): Promise<Prod
 export async function addProveedorToProducto(data: CreateProductoProveedorData): Promise<ProductoProveedor | null> {
     const insertData = {
         ...data,
-        tenant_id: DEMO_TENANT_ID,
+        // tenant_id removido
         es_principal: data.es_principal ?? false,
     };
 

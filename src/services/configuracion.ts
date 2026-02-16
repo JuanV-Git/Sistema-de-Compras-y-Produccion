@@ -1,11 +1,12 @@
 // =====================================================
 // SERVICIO DE CONFIGURACION GLOBAL
 // =====================================================
-// Configuraciones del sistema como tipo de cambio, etc.
+// Configuración sistema (Single Tenant)
+
+import type { Configuracion } from '@/types/database';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const DEMO_TENANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
 // Headers comunes
 function getHeaders() {
@@ -16,25 +17,15 @@ function getHeaders() {
     };
 }
 
-export interface ConfiguracionGlobal {
-    id: string;
-    tenant_id: string;
-    clave: string;
-    valor: string;
-    descripcion?: string;
-    created_at: string;
-    updated_at: string;
-}
-
-// Tipo de cambio por defecto si no hay configuración
+// Tipo de cambio por defecto
 const DEFAULT_TIPO_CAMBIO = 1200;
 
 /**
- * Obtiene una configuración por clave
+ * Obtiene la configuración global (única fila)
  */
-export async function getConfiguracion(clave: string): Promise<string | null> {
+export async function getConfiguracion(): Promise<Configuracion | null> {
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/configuraciones?tenant_id=eq.${DEMO_TENANT_ID}&clave=eq.${clave}`,
+        `${SUPABASE_URL}/rest/v1/configuraciones?select=*&limit=1`,
         {
             method: 'GET',
             headers: getHeaders(),
@@ -42,64 +33,58 @@ export async function getConfiguracion(clave: string): Promise<string | null> {
     );
 
     if (!response.ok) {
-        console.error('Error fetching configuracion:', await response.text());
+        // Puede que la tabla aun no tenga datos
         return null;
     }
 
     const data = await response.json();
-    return data[0]?.valor || null;
+    return data[0] || null;
 }
 
 /**
- * Obtiene el tipo de cambio USD -> ARS
+ * Obtiene el tipo de cambio USD -> ARS desde params
  */
 export async function getTipoCambio(): Promise<number> {
-    const valor = await getConfiguracion('TIPO_CAMBIO_USD');
-    return valor ? parseFloat(valor) : DEFAULT_TIPO_CAMBIO;
-}
-
-/**
- * Actualiza o crea una configuración
- */
-export async function setConfiguracion(clave: string, valor: string, descripcion?: string): Promise<boolean> {
-    // Primero ver si existe
-    const existing = await getConfiguracion(clave);
-
-    if (existing !== null) {
-        // Actualizar
-        const response = await fetch(
-            `${SUPABASE_URL}/rest/v1/configuraciones?tenant_id=eq.${DEMO_TENANT_ID}&clave=eq.${clave}`,
-            {
-                method: 'PATCH',
-                headers: getHeaders(),
-                body: JSON.stringify({ valor, updated_at: new Date().toISOString() }),
-            }
-        );
-        return response.ok;
-    } else {
-        // Crear
-        const response = await fetch(
-            `${SUPABASE_URL}/rest/v1/configuraciones`,
-            {
-                method: 'POST',
-                headers: getHeaders(),
-                body: JSON.stringify({
-                    tenant_id: DEMO_TENANT_ID,
-                    clave,
-                    valor,
-                    descripcion,
-                }),
-            }
-        );
-        return response.ok;
+    const config = await getConfiguracion();
+    if (config && config.params && config.params.tipo_cambio_usd) {
+        return Number(config.params.tipo_cambio_usd);
     }
+    return DEFAULT_TIPO_CAMBIO;
 }
 
 /**
- * Actualiza el tipo de cambio USD -> ARS
+ * Actualiza el tipo de cambio USD -> ARS en params
  */
 export async function setTipoCambio(valor: number): Promise<boolean> {
-    return setConfiguracion('TIPO_CAMBIO_USD', valor.toString(), 'Tipo de cambio USD a ARS');
+    const config = await getConfiguracion();
+
+    // Si no existe config, habría que crearla (inicialización), 
+    // pero asumiremos que el seed o setup inicial crea la fila.
+    // Si no existe, fallamos por ahora o hacemos un upsert básico si tuvieramos ID.
+
+    if (!config) {
+        console.error('No se encontró configuración base para actualizar tipo de cambio');
+        return false;
+    }
+
+    const newParams = {
+        ...config.params,
+        tipo_cambio_usd: valor
+    };
+
+    const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/configuraciones?id=eq.${config.id}`,
+        {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify({
+                params: newParams,
+                updated_at: new Date().toISOString()
+            }),
+        }
+    );
+
+    return response.ok;
 }
 
 /**

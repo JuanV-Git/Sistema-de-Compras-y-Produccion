@@ -4,7 +4,6 @@
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const DEMO_TENANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
 function getHeaders() {
     return {
@@ -54,7 +53,7 @@ export interface CreateMovimientoData {
 // Movimiento con producto
 export interface MovimientoConProducto {
     id: string;
-    tenant_id: string;
+    // tenant_id removido
     producto_id: string;
     tipo_movimiento: TipoMovimiento;
     origen: OrigenMovimiento;
@@ -133,7 +132,7 @@ export async function crearMovimientoStock(data: CreateMovimientoData): Promise<
 
     // 4. Insertar movimiento
     const movimientoData = {
-        tenant_id: DEMO_TENANT_ID,
+        // tenant_id removido
         producto_id: data.producto_id,
         tipo_movimiento: data.tipo_movimiento,
         origen: data.origen,
@@ -183,7 +182,7 @@ export async function getMovimientosStock(params?: {
     origen?: OrigenMovimiento;
     limit?: number;
 }): Promise<MovimientoConProducto[]> {
-    let url = `${SUPABASE_URL}/rest/v1/movimientos_stock?tenant_id=eq.${DEMO_TENANT_ID}&select=*,producto:productos(id,codigo,nombre,unidad_medida)&order=created_at.desc`;
+    let url = `${SUPABASE_URL}/rest/v1/movimientos_stock?select=*,producto:productos(id,codigo,nombre,unidad_medida)&order=created_at.desc`;
 
     if (params?.productoId) {
         url += `&producto_id=eq.${params.productoId}`;

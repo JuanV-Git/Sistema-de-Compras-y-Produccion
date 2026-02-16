@@ -3,35 +3,63 @@
 // =====================================================
 
 export type TipoProducto = 'MP' | 'SE' | 'PT' | 'ENVASE' | 'ETIQUETA';
+// ... (rest of the file remains, I will verify services first)
 export type TipoMateriaPrima = 'RESINA' | 'PIGMENTO' | 'CARGA' | 'SOLVENTE' | 'ADITIVO';
 export type UnidadMedida = 'KG' | 'LT' | 'UN' | 'MT' | 'GL';
 export type EstadoReceta = 'ACTIVA' | 'INACTIVA' | 'BORRADOR';
 export type EstadoOC = 'BORRADOR' | 'ENVIADA' | 'PARCIAL' | 'RECIBIDA' | 'CANCELADA';
 export type EstadoOP = 'PLANIFICADA' | 'EN_PRODUCCION' | 'COMPLETADA' | 'CANCELADA';
 export type TipoMovimiento = 'ENTRADA' | 'SALIDA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
-export type OrigenMovimiento = 'REMITO_COMPRA' | 'ORDEN_PRODUCCION' | 'AJUSTE_MANUAL' | 'INVENTARIO_INICIAL';
-
-
+export type OrigenMovimiento = 'REMITO_COMPRA' | 'ORDEN_PRODUCCION' | 'AJUSTE_MANUAL' | 'INVENTARIO_INICIAL' | 'COMPRA' | 'PRODUCCION_PT' | 'CONSUMO_PRODUCCION' | 'DEVOLUCION_PROVEEDOR' | 'TRASPASO_ENTRADA' | 'TRASPASO_SALIDA';
 
 // =====================================================
 // INTERFACES DE TABLAS
 // =====================================================
 
-export interface Tenant {
+export interface TenantSettings {
+    modulos: {
+        produccion: boolean;
+        compras: boolean;
+        ventas: boolean;
+    };
+    recetas: {
+        habilitar_semielaborados: boolean;
+        permite_duplicados_ingredientes: boolean;
+        nivel_detalle_pasos: 'simple' | 'detallado';
+    };
+    monedas: {
+        principal: 'ARS' | 'USD' | 'EUR' | 'MXN';
+        secundaria?: 'ARS' | 'USD' | 'EUR' | 'MXN';
+        lista_habilitadas: string[];
+    };
+    ui: {
+        theme_color: string;
+        logo_url?: string;
+    };
+}
+
+export interface Configuracion {
     id: string;
-    nombre: string;
-    codigo: string;
-    email?: string;
-    telefono?: string;
-    direccion?: string;
-    activo: boolean;
+    nombre_empresa: string;
+    moneda_principal: string;
+    logo_url?: string;
+    theme_color: string;
+    params: Record<string, any>;
     created_at: string;
     updated_at: string;
 }
 
+export interface Tenant {
+    id: string;
+    nombre: string;
+    slug: string;
+    configuracion: TenantSettings;
+    plan: string;
+    created_at: string;
+}
+
 export interface Usuario {
     id: string;
-    tenant_id: string;
     auth_user_id: string;
     email: string;
     nombre: string;
@@ -43,7 +71,6 @@ export interface Usuario {
 
 export interface Producto {
     id: string;
-    tenant_id: string;
     codigo: string;
     nombre: string;
     descripcion?: string;
@@ -52,29 +79,28 @@ export interface Producto {
     unidad_medida: string;
     stock_actual: number;
     stock_minimo: number;
-    stock_maximo?: number; // Restaurado
-    costo_unitario: number; // Legacy or Cache
-    lista_costo_id?: string; // Reference to listas_precios
+    stock_maximo?: number;
+    costo_unitario: number;
+    lista_costo_id?: string;
     costo_promedio: number;
-    activo: boolean; // Indicates if deleted/inactive
+    activo: boolean;
     created_at: string;
     updated_at: string;
 }
 
 export interface ListaPrecio {
     id: string;
-    tenant_id: string;
     nombre: string;
     tipo: 'COSTO' | 'VENTA';
     descripcion?: string;
     activa: boolean;
+    moneda?: 'ARS' | 'USD';
     created_at: string;
     updated_at: string;
 }
 
 export interface PrecioProducto {
     id: string;
-    tenant_id: string;
     lista_id: string;
     producto_id: string;
     precio: number;
@@ -89,7 +115,6 @@ export interface PrecioProducto {
 
 export interface Proveedor {
     id: string;
-    tenant_id: string;
     codigo: string;
     nombre: string;
     razon_social?: string;
@@ -109,7 +134,6 @@ export interface Proveedor {
 
 export interface ProductoProveedor {
     id: string;
-    tenant_id: string;
     producto_id: string;
     proveedor_id: string;
     codigo_alternativo?: string;
@@ -123,7 +147,6 @@ export interface ProductoProveedor {
 
 export interface Receta {
     id: string;
-    tenant_id: string;
     codigo: string;
     nombre: string;
     version: number;
@@ -133,8 +156,8 @@ export interface Receta {
     estado: EstadoReceta;
     costo_total: number;
     costo_por_unidad: number;
-    costo_total_usd?: number; // New multi-currency support
-    costo_por_unidad_usd?: number; // New multi-currency support
+    costo_total_usd?: number;
+    costo_por_unidad_usd?: number;
     observaciones?: string;
     created_at: string;
     updated_at: string;
@@ -142,15 +165,15 @@ export interface Receta {
 
 export interface RecetaComponente {
     id: string;
-    tenant_id: string;
     receta_id: string;
     producto_id: string;
     cantidad: number;
     unidad_medida: string;
     orden: number;
     costo_unitario: number;
-    moneda?: string; // Added for multi-currency
+    moneda?: string;
     costo_subtotal: number;
+    instrucciones?: string;
     created_at: string;
     // Joined
     producto?: Producto;
@@ -158,7 +181,6 @@ export interface RecetaComponente {
 
 export interface OrdenCompra {
     id: string;
-    tenant_id: string;
     numero: string;
     proveedor_id: string;
     estado: EstadoOC;
@@ -167,6 +189,8 @@ export interface OrdenCompra {
     subtotal: number;
     iva: number;
     total: number;
+    moneda: 'ARS' | 'USD';
+    tipo_cambio: number;
     observaciones?: string;
     usuario_creacion?: string;
     created_at: string;
@@ -177,14 +201,13 @@ export interface OrdenCompra {
 
 export interface OrdenCompraItem {
     id: string;
-    tenant_id: string;
     orden_compra_id: string;
     producto_id: string;
     cantidad_pedida: number;
     cantidad_recibida: number;
     precio_unitario: number;
     subtotal: number;
-    estado: string;
+    estado: 'PENDIENTE' | 'PARCIAL' | 'COMPLETADO' | 'CANCELADO';
     created_at: string;
     // Joined
     producto?: Producto;
@@ -192,7 +215,6 @@ export interface OrdenCompraItem {
 
 export interface OrdenProduccion {
     id: string;
-    tenant_id: string;
     numero: string;
     receta_id: string;
     producto_id: string;
@@ -218,7 +240,6 @@ export interface OrdenProduccion {
 
 export interface OrdenProduccionConsumo {
     id: string;
-    tenant_id: string;
     orden_produccion_id: string;
     producto_id: string;
     cantidad_teorica: number;
@@ -234,7 +255,6 @@ export interface OrdenProduccionConsumo {
 
 export interface MovimientoStock {
     id: string;
-    tenant_id: string;
     producto_id: string;
     tipo_movimiento: TipoMovimiento;
     origen: OrigenMovimiento;

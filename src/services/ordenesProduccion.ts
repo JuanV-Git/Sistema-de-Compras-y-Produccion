@@ -7,7 +7,6 @@ import type { OrdenProduccion, OrdenProduccionConsumo, Receta, Producto } from '
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const DEMO_TENANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
 function getHeaders() {
     return {
@@ -48,7 +47,7 @@ export interface OrdenProduccionConsumoConProducto extends OrdenProduccionConsum
  */
 export async function getOrdenesProduccion(): Promise<OrdenProduccionConRelaciones[]> {
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion?tenant_id=eq.${DEMO_TENANT_ID}&select=*,receta:recetas(id,codigo,nombre),producto:productos(id,codigo,nombre)&order=created_at.desc`,
+        `${SUPABASE_URL}/rest/v1/ordenes_produccion?select=*,receta:recetas(id,codigo,nombre),producto:productos(id,codigo,nombre)&order=created_at.desc`,
         {
             method: 'GET',
             headers: getHeaders(),
@@ -96,7 +95,7 @@ export async function getNextNumeroOP(): Promise<string> {
     const prefix = `OP-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion?tenant_id=eq.${DEMO_TENANT_ID}&numero=like.${prefix}*&select=numero&order=numero.desc&limit=1`,
+        `${SUPABASE_URL}/rest/v1/ordenes_produccion?numero=like.${prefix}*&select=numero&order=numero.desc&limit=1`,
         {
             method: 'GET',
             headers: getHeaders(),
@@ -141,7 +140,7 @@ export async function createOrdenProduccion(data: CreateOrdenProduccionData): Pr
             },
             body: JSON.stringify({
                 ...data,
-                tenant_id: DEMO_TENANT_ID,
+                // tenant_id removido
                 estado: 'PLANIFICADA',
                 cantidad_producida: 0,
                 costo_real_total: 0,
@@ -282,7 +281,7 @@ export async function generarConsumosTeoricos(ordenId: string, recetaId: string,
                 method: 'POST',
                 headers: getHeaders(),
                 body: JSON.stringify({
-                    tenant_id: DEMO_TENANT_ID,
+                    // tenant_id removido
                     orden_produccion_id: ordenId,
                     producto_id: comp.producto_id,
                     cantidad_teorica: cantidadTeorica,
