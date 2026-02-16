@@ -351,7 +351,33 @@ async function recalcularCostoRecursivo(
     // 3. Recalcular totales de esta receta
     await updateRecetaCostos(recetaId);
 }
-// ... (masivo function stays same) ...
+/**
+ * Ejecuta la actualización masiva de todas las recetas
+ */
+export async function recalcularCostosMasivo(): Promise<{ success: boolean, message: string }> {
+    try {
+        console.log('[Masivo] Iniciando recálculo masivo...');
+        const recetas = await getRecetas();
+
+        const recetasMap = new Map<string, Receta>();
+        recetas.forEach(r => {
+            if (r.producto_id) {
+                recetasMap.set(r.producto_id, r);
+            }
+        });
+
+        const visited = new Set<string>();
+
+        for (const r of recetas) {
+            await recalcularCostoRecursivo(r.id, recetasMap, visited);
+        }
+
+        return { success: true, message: `Se actualizaron ${visited.size} recetas.` };
+    } catch (error) {
+        console.error('[Masivo] Error:', error);
+        return { success: false, message: 'Error en cálculo masivo' };
+    }
+}
 
 // =====================================================
 // COMPONENTES DE RECETA

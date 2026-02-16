@@ -172,7 +172,7 @@ export default function RecetaDetallePage() {
                         variant="secondary"
                         onClick={handleUpdateCostos}
                         disabled={updatingCostos}
-                        title="Actualizar costos usando las listas de precios vigentes"
+                        title="Actualizar costos usando los costos de insumos actuales"
                     >
                         {updatingCostos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
                         <span className="ml-2 hidden sm:inline">Actualizar Costos</span>
