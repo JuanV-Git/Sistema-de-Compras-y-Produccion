@@ -7,9 +7,8 @@ import { Card, Button, Select } from '@/components/ui';
 import { Save, ArrowLeft, Loader2, Package } from 'lucide-react';
 import { createProducto, updateProducto, getNextCodigoProducto } from '@/services/productos';
 import { getRecetas, linkRecetaToProducto } from '@/services/recetas'; // Importar servicio recetas
-import { getListasPrecios, updatePrecioProducto } from '@/services/precios'; // Importar servicio de precios
 import { getTipoCambio } from '@/services/configuracion';
-import type { Producto, TipoProducto, TipoMateriaPrima, UnidadMedida, ListaPrecio } from '@/types/database'; // Importar ListaPrecio
+import type { Producto, TipoProducto, TipoMateriaPrima, UnidadMedida } from '@/types/database'; // Importar ListaPrecio
 import { TipoProductoLabels, TipoMateriaPrimaLabels, UnidadMedidaLabels, TipoProductoPrefixes } from '@/types/database';
 import Link from 'next/link';
 import { ProductoProveedoresSection } from './ProductoProveedoresSection';
@@ -40,7 +39,6 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
     const [error, setError] = useState<string | null>(null);
     const [loadingCodigo, setLoadingCodigo] = useState(false);
     const [tipoCambio, setTipoCambio] = useState<number>(1200);
-    const [listasPrecios, setListasPrecios] = useState<ListaPrecio[]>([]); // Estado para listas
     const [recetas, setRecetas] = useState<any[]>([]); // Estado para recetas
     const [selectedRecetaId, setSelectedRecetaId] = useState<string>(''); // Receta seleccionada
 
@@ -54,7 +52,6 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
         unidad_medida: producto?.unidad_medida || 'KG' as UnidadMedida,
         costo_unitario: producto?.costo_unitario?.toString() || '0',
         moneda_costo: (producto as any)?.moneda_costo || 'ARS',
-        lista_costo_id: producto?.lista_costo_id || '', // Estado para lista seleccionada
         stock_minimo: producto?.stock_minimo?.toString() || '0',
         stock_actual: producto?.stock_actual?.toString() || '0',
     });
@@ -62,7 +59,6 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
     // Cargar listas, tipo de cambio y recetas al montar
     useEffect(() => {
         getTipoCambio().then(setTipoCambio);
-        getListasPrecios('COSTO').then(setListasPrecios);
         getRecetas().then(data => {
             setRecetas(data);
             // Si es edición, buscar si alguna receta apunta a este producto
@@ -115,7 +111,6 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                 costo_promedio: parseFloat(formData.costo_unitario) || 0,
                 stock_minimo: parseFloat(formData.stock_minimo) || 0,
                 stock_actual: parseFloat(formData.stock_actual) || 0,
-                lista_costo_id: formData.lista_costo_id || undefined, // Guardar la lista asignada
                 activo: true,
             };
 
@@ -129,22 +124,6 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
             if (!result) {
                 setError('Error al guardar el producto. Verificá los datos e intentá nuevamente.');
                 return;
-            }
-
-            // Actualizar precio en la lista histórica (Si hay lista seleccionada)
-            if (formData.lista_costo_id) {
-                try {
-                    await updatePrecioProducto(
-                        formData.lista_costo_id,
-                        result.id,
-                        parseFloat(formData.costo_unitario) || 0,
-                        formData.moneda_costo // Pasar moneda
-                        // TODO: Pasar usuario_id si estuviera disponible
-                    );
-                } catch (err) {
-                    console.error('Error guardando precio histórico:', err);
-                    // No bloqueamos el flujo principal si falla el histórico, pero logueamos
-                }
             }
 
             // Vincular receta seleccionada (Si aplica y se seleccionó una)
@@ -302,44 +281,28 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                             />
                         </div>
 
-                        {/* Costo Unitario con Moneda y Lista */}
+                        {/* Costo Unitario con Moneda */}
                         <div className="md:col-span-2 space-y-4 border p-4 rounded-lg bg-[var(--bg-primary)]/50">
                             <h4 className="font-medium text-[var(--accent-gold)] flex items-center gap-2">
                                 <span className="text-lg">$</span> Configuración de Costos
                             </h4>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
+                                <div className="col-span-2 md:col-span-1">
                                     <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                                        Lista de Costo Asignada
-                                    </label>
-                                    <Select
-                                        options={[
-                                            { value: '', label: 'Seleccionar lista de costo...' },
-                                            ...listasPrecios.map(l => ({ value: l.id, label: l.nombre }))
-                                        ]}
-                                        value={formData.lista_costo_id}
-                                        onChange={(e) => handleChange('lista_costo_id', e.target.value)}
-                                        className="w-full"
-                                    />
-                                    {listasPrecios.length === 0 && (
-                                        <p className="text-xs text-[var(--color-warning)] mt-1">
-                                            No hay listas creadas. <Link href="/configuracion/listas-precios" className="underline">Crear una lista</Link>
-                                        </p>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                                        Costo Unitario Actual
-                                        {selectedRecetaId && <span className="text-xs text-yellow-500 ml-2">(Sincronizado con Receta)</span>}
+                                        Costo Unitario
+                                        {(formData.tipo === 'PT' || formData.tipo === 'SE') &&
+                                            <span className="text-xs text-[var(--accent-gold)] ml-2 border border-[var(--accent-gold)] px-1 rounded">
+                                                Calculado por Formula
+                                            </span>
+                                        }
                                     </label>
                                     <div className="flex gap-2">
                                         <select
                                             value={formData.moneda_costo}
                                             onChange={(e) => handleChange('moneda_costo', e.target.value)}
                                             className="px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)] disabled:opacity-50"
-                                            disabled={!!selectedRecetaId}
+                                            disabled={formData.tipo === 'PT' || formData.tipo === 'SE'}
                                         >
                                             <option value="ARS">$AR</option>
                                             <option value="USD">USD</option>
@@ -350,10 +313,16 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                                             min="0"
                                             value={formData.costo_unitario}
                                             onChange={(e) => handleChange('costo_unitario', e.target.value)}
-                                            className="flex-1 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)] disabled:opacity-50"
-                                            disabled={!!selectedRecetaId}
+                                            className="flex-1 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                            disabled={formData.tipo === 'PT' || formData.tipo === 'SE'}
+                                            placeholder={(formData.tipo === 'PT' || formData.tipo === 'SE') ? "Automático" : "0.00"}
                                         />
                                     </div>
+                                    {(formData.tipo === 'PT' || formData.tipo === 'SE') && (
+                                        <p className="mt-2 text-xs text-[var(--text-muted)] italic">
+                                            * El costo de Productos Terminados y Semielaborados se calcula automáticamente en base a su receta. Para modificarlo, actualice los costos de sus componentes.
+                                        </p>
+                                    )}
                                     {formData.moneda_costo === 'USD' && (
                                         <p className="mt-1 text-sm text-[var(--text-muted)]">
                                             Equivalente: <span className="gold-text font-medium">

@@ -81,6 +81,7 @@ export interface Producto {
     stock_minimo: number;
     stock_maximo?: number;
     costo_unitario: number;
+    moneda_costo?: 'ARS' | 'USD';
     lista_costo_id?: string;
     costo_promedio: number;
     activo: boolean;
@@ -88,30 +89,7 @@ export interface Producto {
     updated_at: string;
 }
 
-export interface ListaPrecio {
-    id: string;
-    nombre: string;
-    tipo: 'COSTO' | 'VENTA';
-    descripcion?: string;
-    activa: boolean;
-    moneda?: 'ARS' | 'USD';
-    created_at: string;
-    updated_at: string;
-}
 
-export interface PrecioProducto {
-    id: string;
-    lista_id: string;
-    producto_id: string;
-    precio: number;
-    moneda: string;
-    fecha_vigencia: string;
-    usuario_id?: string;
-    created_at: string;
-    // Joined
-    lista?: ListaPrecio;
-    producto?: Producto;
-}
 
 export interface Proveedor {
     id: string;
