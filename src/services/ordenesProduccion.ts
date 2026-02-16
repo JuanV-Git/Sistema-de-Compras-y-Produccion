@@ -3,18 +3,9 @@
 // =====================================================
 // CRUD completo para órdenes de producción y consumos
 
+import { createClient } from '@/lib/supabase/client';
 import type { OrdenProduccion, OrdenProduccionConsumo, Receta, Producto } from '@/types/database';
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-function getHeaders() {
-    return {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-    };
-}
+import { getStockProducto, registrarConsumoProduccion, registrarProduccionPT } from './stock';
 
 export type { OrdenProduccion, OrdenProduccionConsumo };
 
@@ -46,68 +37,63 @@ export interface OrdenProduccionConsumoConProducto extends OrdenProduccionConsum
  * Obtiene todas las órdenes de producción con receta y producto
  */
 export async function getOrdenesProduccion(): Promise<OrdenProduccionConRelaciones[]> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion?select=*,receta:recetas(id,codigo,nombre),producto:productos(id,codigo,nombre)&order=created_at.desc`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching ordenes de produccion:', await response.text());
+    const { data, error } = await supabase
+        .from('ordenes_produccion')
+        .select('*, receta:recetas(id,codigo,nombre), producto:productos(id,codigo,nombre)')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching ordenes de produccion:', error);
         return [];
     }
 
-    return response.json();
+    return (data || []) as unknown as OrdenProduccionConRelaciones[];
 }
 
 /**
  * Obtiene una orden de producción por ID con consumos
  */
 export async function getOrdenProduccionById(id: string): Promise<OrdenProduccionConRelaciones | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion?id=eq.${id}&select=*,receta:recetas(*),producto:productos(*)`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching orden de produccion:', await response.text());
+    const { data, error } = await supabase
+        .from('ordenes_produccion')
+        .select('*, receta:recetas(*), producto:productos(*)')
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching orden de produccion:', error);
         return null;
     }
 
-    const data = await response.json();
-    if (!data[0]) return null;
+    if (!data) return null;
 
     // Obtener consumos
     const consumos = await getConsumosByOrden(id);
-    return { ...data[0], consumos };
+    return { ...data, consumos } as unknown as OrdenProduccionConRelaciones;
 }
 
 /**
  * Genera el siguiente número de OP disponible (OP-YYYYMM-NNN)
  */
 export async function getNextNumeroOP(): Promise<string> {
+    const supabase = createClient();
     const now = new Date();
     const prefix = `OP-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion?numero=like.${prefix}*&select=numero&order=numero.desc&limit=1`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const { data } = await supabase
+        .from('ordenes_produccion')
+        .select('numero')
+        .ilike('numero', `${prefix}%`)
+        .order('numero', { ascending: false })
+        .limit(1);
 
-    if (!response.ok) {
+    if (!data || data.length === 0) {
         return `${prefix}-001`;
     }
-
-    const data = await response.json();
-    if (!data[0]) return `${prefix}-001`;
 
     const lastNum = data[0].numero;
     const match = lastNum.match(/-(\d{3})$/);
@@ -130,85 +116,88 @@ export type CreateOrdenProduccionData = {
  * Crea una nueva orden de producción
  */
 export async function createOrdenProduccion(data: CreateOrdenProduccionData): Promise<OrdenProduccion | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion`,
-        {
-            method: 'POST',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify({
-                ...data,
-                // tenant_id removido
-                estado: 'PLANIFICADA',
-                cantidad_producida: 0,
-                costo_real_total: 0,
-                variacion_porcentaje: 0,
-                fecha_creacion: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error creating orden de produccion:', await response.text());
+    const insertData = {
+        ...data,
+        estado: 'PLANIFICADA',
+        cantidad_producida: 0,
+        costo_real_total: 0,
+        variacion_porcentaje: 0,
+        fecha_creacion: new Date().toISOString(),
+    };
+
+    const { data: result, error } = await supabase
+        .from('ordenes_produccion')
+        .insert(insertData)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error creating orden de produccion:', error);
         return null;
     }
 
-    const result = await response.json();
-    return result[0] || null;
+    return result;
 }
 
 /**
  * Actualiza una orden de producción
  */
 export async function updateOrdenProduccion(id: string, data: Partial<OrdenProduccion>): Promise<OrdenProduccion | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify({
-                ...data,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error updating orden de produccion:', await response.text());
+    const { data: result, error } = await supabase
+        .from('ordenes_produccion')
+        .update({
+            ...data,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating orden de produccion:', error);
         return null;
     }
 
-    const result = await response.json();
-    return result[0] || null;
+    return result;
 }
 
 /**
- * Elimina una orden de producción (solo si está planificada)
+ * Elimina una orden de producción.
+ * Realiza Hard Delete de consumo: OrdenProduccionConsumo orden.
  */
 export async function deleteOrdenProduccion(id: string): Promise<boolean> {
-    // Primero eliminar consumos
-    await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion_consumos?orden_produccion_id=eq.${id}`,
-        {
-            method: 'DELETE',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion?id=eq.${id}`,
-        {
-            method: 'DELETE',
-            headers: getHeaders(),
-        }
-    );
+    // 1. Eliminar consumos primero
+    const { error: consumosError } = await supabase
+        .from('ordenes_produccion_consumos')
+        .delete()
+        .eq('orden_produccion_id', id);
 
-    return response.ok;
+    if (consumosError) {
+        console.error('Error deleting consumos:', consumosError);
+        throw new Error(`Error al eliminar consumos: ${consumosError.message}`);
+    }
+
+    // 2. Eliminar la orden
+    const { error } = await supabase
+        .from('ordenes_produccion')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        if (error.code === '23503') {
+            throw new Error('No se puede eliminar la orden porque tiene registros asociados (movimientos de stock).');
+        }
+        console.error('Error deleting orden produccion:', error);
+        throw new Error(error.message);
+    }
+
+    return true;
 }
 
 // =====================================================
@@ -219,55 +208,47 @@ export async function deleteOrdenProduccion(id: string): Promise<boolean> {
  * Obtiene consumos de una orden con datos del producto
  */
 export async function getConsumosByOrden(ordenId: string): Promise<OrdenProduccionConsumoConProducto[]> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion_consumos?orden_produccion_id=eq.${ordenId}&select=*,producto:productos(id,codigo,nombre,unidad_medida)&order=created_at`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching consumos:', await response.text());
+    const { data, error } = await supabase
+        .from('ordenes_produccion_consumos')
+        .select('*, producto:productos(id,codigo,nombre,unidad_medida)')
+        .eq('orden_produccion_id', ordenId)
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching consumos:', error);
         return [];
     }
 
-    return response.json();
+    return (data || []) as unknown as OrdenProduccionConsumoConProducto[];
 }
 
 /**
  * Genera los consumos teóricos basados en la receta
  */
 export async function generarConsumosTeoricos(ordenId: string, recetaId: string, cantidadProgramada: number): Promise<boolean> {
-    // Obtener componentes de la receta
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas_componentes?receta_id=eq.${recetaId}&select=*,producto:productos(id,unidad_medida,costo_unitario)`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching componentes:', await response.text());
+    // Obtener componentes de la receta
+    const { data: componentes, error: compError } = await supabase
+        .from('recetas_componentes')
+        .select('*, producto:productos(id,unidad_medida,costo_unitario)')
+        .eq('receta_id', recetaId);
+
+    if (compError || !componentes) {
+        console.error('Error fetching componentes:', compError);
         return false;
     }
 
-    const componentes = await response.json();
-
     // Obtener la receta para saber cuántas unidades produce
-    const recetaResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas?id=eq.${recetaId}&select=cantidad_producida`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const { data: recetaData } = await supabase
+        .from('recetas')
+        .select('cantidad_producida')
+        .eq('id', recetaId)
+        .single();
 
-    const recetaData = await recetaResponse.json();
-    const cantidadProducidaReceta = recetaData[0]?.cantidad_producida || 1;
-
-    // Calcular factor de multiplicación
+    const cantidadProducidaReceta = recetaData?.cantidad_producida || 1;
     const factor = cantidadProgramada / cantidadProducidaReceta;
 
     // Crear consumos teóricos
@@ -275,24 +256,16 @@ export async function generarConsumosTeoricos(ordenId: string, recetaId: string,
         const cantidadTeorica = comp.cantidad * factor;
         const costoTeorico = cantidadTeorica * (comp.costo_unitario || 0);
 
-        await fetch(
-            `${SUPABASE_URL}/rest/v1/ordenes_produccion_consumos`,
-            {
-                method: 'POST',
-                headers: getHeaders(),
-                body: JSON.stringify({
-                    // tenant_id removido
-                    orden_produccion_id: ordenId,
-                    producto_id: comp.producto_id,
-                    cantidad_teorica: cantidadTeorica,
-                    cantidad_real: 0,
-                    costo_unitario: comp.costo_unitario || 0,
-                    costo_teorico: costoTeorico,
-                    costo_real: 0,
-                    variacion_cantidad: 0,
-                }),
-            }
-        );
+        await supabase.from('ordenes_produccion_consumos').insert({
+            orden_produccion_id: ordenId,
+            producto_id: comp.producto_id,
+            cantidad_teorica: cantidadTeorica,
+            cantidad_real: 0,
+            costo_unitario: comp.costo_unitario || 0,
+            costo_teorico: costoTeorico,
+            costo_real: 0,
+            variacion_cantidad: 0,
+        });
     }
 
     return true;
@@ -302,36 +275,30 @@ export async function generarConsumosTeoricos(ordenId: string, recetaId: string,
  * Actualiza el consumo real de un item
  */
 export async function updateConsumoReal(id: string, cantidadReal: number): Promise<boolean> {
+    const supabase = createClient();
+
     // Primero obtener el consumo actual
-    const getResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion_consumos?id=eq.${id}`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const { data: consumo } = await supabase
+        .from('ordenes_produccion_consumos')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    const consumoData = await getResponse.json();
-    if (!consumoData[0]) return false;
+    if (!consumo) return false;
 
-    const consumo = consumoData[0];
     const costoReal = cantidadReal * consumo.costo_unitario;
     const variacionCantidad = ((cantidadReal - consumo.cantidad_teorica) / consumo.cantidad_teorica) * 100;
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_produccion_consumos?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify({
-                cantidad_real: cantidadReal,
-                costo_real: costoReal,
-                variacion_cantidad: variacionCantidad,
-            }),
-        }
-    );
+    const { error } = await supabase
+        .from('ordenes_produccion_consumos')
+        .update({
+            cantidad_real: cantidadReal,
+            costo_real: costoReal,
+            variacion_cantidad: variacionCantidad,
+        })
+        .eq('id', id);
 
-    return response.ok;
+    return !error;
 }
 
 /**
@@ -354,7 +321,6 @@ export interface ReporteFaltantes {
  * Verifica si hay stock suficiente para los consumos de una orden
  */
 export async function verificarDisponibilidadStock(ordenId: string): Promise<ReporteFaltantes> {
-    const { getStockProducto } = await import('./stock');
     const consumos = await getConsumosByOrden(ordenId);
 
     const reporte: ReporteFaltantes = {
@@ -404,7 +370,7 @@ export async function cambiarEstadoOrdenProduccion(
         }
     }
 
-    const updates: Partial<OrdenProduccion> = { estado: estado as any };
+    const updates: Partial<OrdenProduccion> = { estado };
 
     if (estado === 'EN_PRODUCCION') {
         updates.fecha_inicio = new Date().toISOString();
@@ -426,8 +392,6 @@ export async function cambiarEstadoOrdenProduccion(
         // MOVIMIENTOS DE STOCK AL COMPLETAR OP
         // ============================================
         if (orden) {
-            const { registrarConsumoProduccion, registrarProduccionPT } = await import('./stock');
-
             // 1. SALIDA por cada MP consumida
             for (const consumo of consumos) {
                 if (consumo.cantidad_real && consumo.cantidad_real > 0) {

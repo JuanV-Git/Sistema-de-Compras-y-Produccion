@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Badge } from '@/components/ui';
-import { Plus, Search, FlaskConical, Eye, Edit, DollarSign, Loader2, RefreshCw } from 'lucide-react';
-import { getRecetas, recalcularCostosMasivo } from '@/services/recetas';
+import { ConfirmModal } from '@/components/ui/Modal';
+import { Plus, Search, FlaskConical, Eye, Edit, DollarSign, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { getRecetas, recalcularCostosMasivo, deleteReceta } from '@/services/recetas';
 import type { Receta } from '@/types/database';
 import { EstadoRecetaLabels } from '@/types/database';
 
@@ -24,6 +25,11 @@ export default function RecetasPage() {
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false); // Estado para actualización masiva
     const [searchTerm, setSearchTerm] = useState('');
+    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; receta: Receta | null }>({
+        isOpen: false,
+        receta: null
+    });
+    const [deleting, setDeleting] = useState(false);
 
     // Cargar datos de Supabase
     useEffect(() => {
@@ -71,6 +77,20 @@ export default function RecetasPage() {
             alert('Error inesperado al actualizar costos.');
         } finally {
             setUpdating(false);
+        }
+    }
+
+    async function handleDelete() {
+        if (!deleteModal.receta) return;
+        setDeleting(true);
+        try {
+            await deleteReceta(deleteModal.receta.id);
+            await loadRecetas();
+            setDeleteModal({ isOpen: false, receta: null });
+        } catch (error: any) {
+            alert(error.message || 'Error al eliminar la receta');
+        } finally {
+            setDeleting(false);
         }
     }
 
@@ -187,6 +207,13 @@ export default function RecetasPage() {
                                             >
                                                 <Eye className="w-4 h-4" />
                                             </Link>
+                                            <button
+                                                onClick={() => setDeleteModal({ isOpen: true, receta })}
+                                                className="p-2 rounded hover:bg-red-900/30 text-[var(--text-muted)] hover:text-[var(--color-danger)] transition-colors"
+                                                title="Eliminar"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -202,6 +229,17 @@ export default function RecetasPage() {
                     )}
                 </>
             )}
+
+            <ConfirmModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, receta: null })}
+                onConfirm={handleDelete}
+                title="Eliminar Receta"
+                message={`¿Estás seguro de eliminar la receta "${deleteModal.receta?.nombre}"?`}
+                confirmText="Eliminar"
+                confirmVariant="danger"
+                loading={deleting}
+            />
         </PageContainer>
     );
 }

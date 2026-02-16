@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button, Card, Input } from '@/components/ui';
-import { Plus, Tag, DollarSign, Archive, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { getListasPrecios, createListaPrecio } from '@/services/precios';
+import { Plus, Tag, DollarSign, Archive, Loader2, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { getListasPrecios, createListaPrecio, deleteListaPrecio } from '@/services/precios';
 import type { ListaPrecio } from '@/types/database';
+import { ConfirmModal } from '@/components/ui/Modal';
 
 export default function ListasPreciosPage() {
     const router = useRouter();
@@ -21,6 +22,13 @@ export default function ListasPreciosPage() {
     const [tipo, setTipo] = useState<'COSTO' | 'VENTA'>('COSTO');
     const [error, setError] = useState<string | null>(null);
 
+    // Delete state
+    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; lista: ListaPrecio | null }>({
+        isOpen: false,
+        lista: null
+    });
+    const [deleting, setDeleting] = useState(false);
+
     useEffect(() => {
         loadListas();
     }, []);
@@ -34,11 +42,8 @@ export default function ListasPreciosPage() {
 
     async function handleCreate(e: React.FormEvent) {
         e.preventDefault();
-        console.log('handleCreate STARTED'); // DEBUG
         setCreating(true);
         setError(null);
-
-        console.log('Payload:', { nombre, descripcion, tipo }); // DEBUG
 
         try {
             const { data: nuevaLista, error: createError } = await createListaPrecio({
@@ -47,17 +52,13 @@ export default function ListasPreciosPage() {
                 tipo
             });
 
-            console.log('Result:', { nuevaLista, createError }); // DEBUG
-
             if (createError) {
-                console.error('Create Error:', createError); // DEBUG
-                setError('Error al crear: ' + (createError.message || JSON.stringify(createError) || 'Intente nuevamente'));
+                setError('Error al crear: ' + ((createError as any).message || JSON.stringify(createError) || 'Intente nuevamente'));
                 setCreating(false);
                 return;
             }
 
             if (nuevaLista) {
-                console.log('Success, updating list'); // DEBUG
                 setListas([...listas, nuevaLista]);
                 setShowForm(false);
                 setNombre('');
@@ -65,11 +66,24 @@ export default function ListasPreciosPage() {
                 setTipo('COSTO');
             }
         } catch (err) {
-            console.error('CRITICAL ERROR in handleCreate:', err); // DEBUG
             setError('Error crítico: ' + String(err));
         }
 
         setCreating(false);
+    }
+
+    async function handleDelete() {
+        if (!deleteModal.lista) return;
+        setDeleting(true);
+        try {
+            await deleteListaPrecio(deleteModal.lista.id);
+            await loadListas();
+            setDeleteModal({ isOpen: false, lista: null });
+        } catch (error: any) {
+            alert(error.message || 'Error al eliminar la lista de precios');
+        } finally {
+            setDeleting(false);
+        }
     }
 
     return (
@@ -150,8 +164,8 @@ export default function ListasPreciosPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {listas.map(lista => (
-                        <Link key={lista.id} href={`/configuracion/listas-precios/${lista.id}`}>
-                            <Card className="p-5 hover:border-[var(--accent-gold)] transition-colors group h-full">
+                        <Card key={lista.id} className="p-5 hover:border-[var(--accent-gold)] transition-colors group h-full relative">
+                            <Link href={`/configuracion/listas-precios/${lista.id}`} className="block">
                                 <div className="flex justify-between items-start mb-4">
                                     <div className={`p-2 rounded-lg ${lista.tipo === 'COSTO' ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'}`}>
                                         {lista.tipo === 'COSTO' ? <Tag className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
@@ -178,11 +192,37 @@ export default function ListasPreciosPage() {
                                         </span>
                                     )}
                                 </div>
-                            </Card>
-                        </Link>
+                            </Link>
+
+                            {/* Botón de eliminar absoluto */}
+                            <div className="absolute top-4 right-12 z-10">
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setDeleteModal({ isOpen: true, lista });
+                                    }}
+                                    className="p-1.5 rounded-full hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-500 transition-colors"
+                                    title="Eliminar lista"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </Card>
                     ))}
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, lista: null })}
+                onConfirm={handleDelete}
+                title="Eliminar Lista de Precios"
+                message={`¿Estás seguro de eliminar la lista "${deleteModal.lista?.nombre}"?`}
+                confirmText="Eliminar"
+                confirmVariant="danger"
+                loading={deleting}
+            />
         </div>
     );
 }

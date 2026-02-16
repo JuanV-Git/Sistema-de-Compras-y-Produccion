@@ -1,23 +1,12 @@
 // =====================================================
 // SERVICIO DE API REST - RECETAS
 // =====================================================
-// Usando fetch directo a la API REST de Supabase
 
+import { createClient } from '@/lib/supabase/client';
 import type { Receta, RecetaComponente, EstadoReceta } from '@/types/database';
 import { getPrecioProducto } from './precios'; // Importar servicio precios
 import { getTipoCambio } from './configuracion'; // Importar tipo cambio
-import { updateProducto } from './productos'; // Importar updateProducto para propagar costos
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-function getHeaders() {
-    return {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-    };
-}
+import { updateProducto } from './productos'; // Importar updateProducto
 
 // =====================================================
 // RECETAS
@@ -27,41 +16,39 @@ function getHeaders() {
  * Obtiene todas las recetas
  */
 export async function getRecetas(): Promise<Receta[]> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas?order=codigo`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching recetas:', await response.text());
+    const { data, error } = await supabase
+        .from('recetas')
+        .select('*')
+        .order('codigo');
+
+    if (error) {
+        console.error('Error fetching recetas:', error);
         return [];
     }
 
-    return response.json();
+    return data || [];
 }
 
 /**
  * Obtiene una receta por ID
  */
 export async function getRecetaById(id: string): Promise<Receta | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas?id=eq.${id}`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching receta:', await response.text());
+    const { data, error } = await supabase
+        .from('recetas')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching receta:', error);
         return null;
     }
 
-    const data = await response.json();
-    return data[0] || null;
+    return data;
 }
 
 /**
@@ -69,22 +56,18 @@ export async function getRecetaById(id: string): Promise<Receta | null> {
  * Formato: REC-001, REC-002, etc.
  */
 export async function getNextCodigoReceta(): Promise<string> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas?select=codigo&order=codigo.desc&limit=100`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        return 'REC-001';
-    }
+    const { data } = await supabase
+        .from('recetas')
+        .select('codigo')
+        .order('codigo', { ascending: false })
+        .limit(100);
 
-    const recetas = await response.json();
+    if (!data) return 'REC-001';
 
     let maxNum = 0;
-    for (const r of recetas) {
+    for (const r of data) {
         const match = r.codigo?.match(/REC-(\d+)/);
         if (match) {
             const num = parseInt(match[1], 10);
@@ -111,34 +94,27 @@ export type CreateRecetaData = {
  * Crea una nueva receta
  */
 export async function createReceta(receta: CreateRecetaData): Promise<Receta | null> {
+    const supabase = createClient();
+
     const insertData = {
         ...receta,
-        // tenant_id removido
         version: receta.version || 1,
         costo_total: 0,
         costo_por_unidad: 0,
     };
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas`,
-        {
-            method: 'POST',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify(insertData),
-        }
-    );
+    const { data, error } = await supabase
+        .from('recetas')
+        .insert(insertData)
+        .select()
+        .single();
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error creating receta:', errorText);
-        throw new Error(`Error al crear receta: ${errorText}`);
+    if (error) {
+        console.error('Error creating receta:', error);
+        throw new Error(`Error al crear receta: ${error.message}`);
     }
 
-    const data = await response.json();
-    return data[0] || data;
+    return data;
 }
 
 /**
@@ -148,51 +124,77 @@ export async function updateReceta(
     id: string,
     receta: Partial<CreateRecetaData>
 ): Promise<Receta | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify({
-                ...receta,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error updating receta:', await response.text());
+    const { data, error } = await supabase
+        .from('recetas')
+        .update({
+            ...receta,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating receta:', error);
         return null;
     }
 
-    const data = await response.json();
-    return data[0] || null;
+    return data;
+}
+
+/**
+ * Elimina una receta.
+ * Hard Delete: Si está vinculada a OPs o Productos, fallará por FK.
+ */
+export async function deleteReceta(id: string): Promise<boolean> {
+    const supabase = createClient();
+
+    // 1. Borrar componentes
+    const { error: compError } = await supabase
+        .from('recetas_componentes')
+        .delete()
+        .eq('receta_id', id);
+
+    if (compError) {
+        console.error('Error deleting componentes of receta:', compError);
+        throw new Error('No se pueden eliminar los componentes de la receta.');
+    }
+
+    // 2. Borrar receta
+    const { error } = await supabase
+        .from('recetas')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        if (error.code === '23503') {
+            throw new Error('No se puede eliminar la receta porque está vinculada a Órdenes de Producción.');
+        }
+        console.error('Error deleting receta:', error);
+        throw new Error(error.message);
+    }
+
+    return true;
 }
 
 /**
  * Vincula una receta a un producto (usado desde ProductoForm)
  */
 export async function linkRecetaToProducto(recetaId: string, productoId: string): Promise<boolean> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas?id=eq.${recetaId}`,
-        {
-            method: 'PATCH',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=minimal',
-            },
-            body: JSON.stringify({
-                producto_id: productoId,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error linking receta to producto:', await response.text());
+    const { error } = await supabase
+        .from('recetas')
+        .update({
+            producto_id: productoId,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', recetaId);
+
+    if (error) {
+        console.error('Error linking receta to producto:', error);
         return false;
     }
 
@@ -210,18 +212,12 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
     if (!receta) return;
 
     // Calcular totales en ARS y USD
-    // Estrategia: Iteramos componentes, convertimos según su moneda y sumamos
     let totalArs = 0;
     let totalUsd = 0;
     const tc = await getTipoCambio();
 
     for (const c of componentes) {
-        // Asumimos que c.moneda viene del fetch (hay que actualizar getComponentesByReceta select)
-        // Ojo: RECETAS_COMPONENTES debe tener columna moneda, si no, asumimos moneda del precio histórico o ARS
-        // Para simplificar, si no tenemos el dato en componente, asumimos ARS.
-        // Pero idealmente updateComponente ya guardó la moneda en la tabla.
 
-        // @ts-ignore
         const monedaComp = c.moneda || 'ARS';
         const costoSubtotal = c.costo_subtotal || 0;
 
@@ -238,20 +234,17 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
     const costoUnitArs = totalArs / cantidad;
     const costoUnitUsd = totalUsd / cantidad;
 
-    await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas?id=eq.${recetaId}`,
-        {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify({
-                costo_total: totalArs,
-                costo_por_unidad: costoUnitArs,
-                costo_total_usd: totalUsd,
-                costo_por_unidad_usd: costoUnitUsd,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
+    await supabase
+        .from('recetas')
+        .update({
+            costo_total: totalArs,
+            costo_por_unidad: costoUnitArs,
+            costo_total_usd: totalUsd,
+            costo_por_unidad_usd: costoUnitUsd,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', recetaId);
 
     // Actualizar el costo del producto vinculado (si existe)
     if (receta.producto_id) {
@@ -264,28 +257,24 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
 
 /**
  * Actualiza los costos de todos los componentes de una receta usando las listas de precios asignadas.
- * Ahora soporta conversión de moneda (ARS/USD).
  */
 export async function actualizarCostosRecetaDesdeListas(recetaId: string): Promise<boolean> {
     const componentes = await getComponentesByReceta(recetaId);
-    const tipoCambio = await getTipoCambio(); // Obtener TC global
     let updatedCount = 0;
 
     for (const comp of componentes) {
-        // @ts-ignore
+
         const listaId = comp.producto?.lista_costo_id;
 
         if (listaId) {
             const precioVigente = await getPrecioProducto(listaId, comp.producto_id);
 
             if (precioVigente && precioVigente.precio !== undefined) {
-                // Determinar moneda del precio vigente (default ARS si null)
                 const monedaPrecio = precioVigente.moneda || 'ARS';
 
-                // Actualizamos componente con precio y moneda
                 await updateComponente(comp.id, {
                     costo_unitario: precioVigente.precio,
-                    moneda: monedaPrecio, // Guardamos la moneda original
+                    moneda: monedaPrecio,
                     cantidad: comp.cantidad
                 }, recetaId);
                 updatedCount++;
@@ -294,7 +283,7 @@ export async function actualizarCostosRecetaDesdeListas(recetaId: string): Promi
     }
 
     if (updatedCount > 0) {
-        await updateRecetaCostos(recetaId); // Recalculamos totales
+        await updateRecetaCostos(recetaId);
         return true;
     }
     return false;
@@ -302,9 +291,6 @@ export async function actualizarCostosRecetaDesdeListas(recetaId: string): Promi
 
 /**
  * Recalcula recursivamente los costos de una receta y sus dependencias.
- * @param recetaId ID de la receta a actualizar
- * @param recetasMap Mapa de ProductoID -> RecetaID para buscar sub-recetas
- * @param visited Set para detectar ciclos
  */
 async function recalcularCostoRecursivo(
     recetaId: string,
@@ -312,45 +298,33 @@ async function recalcularCostoRecursivo(
     visited: Set<string>
 ): Promise<void> {
     if (visited.has(recetaId)) {
-        console.warn(`[recalcular] Ciclo detectado en receta ${recetaId}, saltando.`);
         return;
     }
     visited.add(recetaId);
 
-    console.log(`[recalcular] Procesando receta ${recetaId}...`);
-
     // 1. Obtener componentes actuales
     const componentes = await getComponentesByReceta(recetaId);
-    let cambiosEnComponentes = false;
 
     // 2. Iterar componentes para actualizar sus costos
     for (const comp of componentes) {
         // Opción A: Es Materia Prima o Insumo con Lista de Precio
-        // @ts-ignore
         const listaId = comp.producto?.lista_costo_id;
 
         // Opción B: Es un Semielaborado producido por otra receta
-        // Buscamos si existe una receta que produzca este producto_id
         const subReceta = recetasMap.get(comp.producto_id);
 
         if (subReceta) {
-            // Es un sub-producto: Actualizar primero la sub-receta
             await recalcularCostoRecursivo(subReceta.id, recetasMap, visited);
 
-            // Ahora obtenemos el costo actualizado del producto (que debió actualizarse en el paso anterior)
-            // Como la actualización de producto es async, leemos directamente los totales de la subReceta
             const cantidad = subReceta.cantidad_producida || 1;
             const costoUnitArs = subReceta.costo_total / cantidad;
             const costoUnitUsd = (subReceta.costo_total_usd || 0) / cantidad;
 
-            // Actualizar el componente en la receta actual con los nuevos valores
-            if (Math.abs(comp.costo_unitario - costoUnitArs) > 0.01) { // Pequeña tolerancia
-                console.log(`[recalcular] Actualizando componente SE ${comp.producto?.nombre} en receta madre. Nuevo costo: ${costoUnitArs}`);
+            if (Math.abs(comp.costo_unitario - costoUnitArs) > 0.01) {
                 await updateComponente(comp.id, {
                     costo_unitario: costoUnitArs,
-                    moneda: costoUnitUsd > 0 ? 'USD' : 'ARS', // Preferencia USD si existe
+                    moneda: costoUnitUsd > 0 ? 'USD' : 'ARS',
                 }, recetaId);
-                cambiosEnComponentes = true;
             }
 
         } else if (listaId) {
@@ -364,13 +338,12 @@ async function recalcularCostoRecursivo(
                         moneda: monedaPrecio,
                         cantidad: comp.cantidad
                     }, recetaId);
-                    cambiosEnComponentes = true;
                 }
             }
         }
     }
 
-    // 3. Recalcular totales de esta receta (siempre, por si acaso)
+    // 3. Recalcular totales de esta receta
     await updateRecetaCostos(recetaId);
 }
 
@@ -381,9 +354,7 @@ export async function recalcularCostosMasivo(): Promise<{ success: boolean, mess
     try {
         console.log('[Masivo] Iniciando recálculo masivo...');
         const recetas = await getRecetas();
-        // Filtrar solo activas o todas? Todas por seguridad.
 
-        // Mapa Producto -> Receta que lo produce
         const recetasMap = new Map<string, Receta>();
         recetas.forEach(r => {
             if (r.producto_id) {
@@ -393,8 +364,6 @@ export async function recalcularCostosMasivo(): Promise<{ success: boolean, mess
 
         const visited = new Set<string>();
 
-        // Ejecutar para todas las recetas
-        // El set 'visited' evitará re-procesar las que ya se actualizaron como sub-recetas
         for (const r of recetas) {
             await recalcularCostoRecursivo(r.id, recetasMap, visited);
         }
@@ -412,14 +381,13 @@ export async function recalcularCostosMasivo(): Promise<{ success: boolean, mess
 
 export interface RecetaComponenteConProducto {
     id: string;
-    // tenant_id removido
     receta_id: string;
     producto_id: string;
     cantidad: number;
     unidad_medida: string;
     orden: number;
     costo_unitario: number;
-    moneda?: string; // Added
+    moneda?: string;
     costo_subtotal: number;
     created_at: string;
     producto?: {
@@ -428,6 +396,7 @@ export interface RecetaComponenteConProducto {
         nombre: string;
         unidad_medida: string;
         costo_unitario: number;
+        lista_costo_id?: string;
     };
 }
 
@@ -435,27 +404,20 @@ export interface RecetaComponenteConProducto {
  * Obtiene todos los componentes de una receta
  */
 export async function getComponentesByReceta(recetaId: string): Promise<RecetaComponenteConProducto[]> {
-    const url = `${SUPABASE_URL}/rest/v1/recetas_componentes?receta_id=eq.${recetaId}&select=*,producto:productos(id,codigo,nombre,unidad_medida,costo_unitario,lista_costo_id)`;
+    const supabase = createClient();
+
     // Nota: Select * traerá 'moneda' si existe en tabla
-    console.log('Fetching componentes from:', url);
+    const { data, error } = await supabase
+        .from('recetas_componentes')
+        .select('*, producto:productos(id,codigo,nombre,unidad_medida,costo_unitario,lista_costo_id)')
+        .eq('receta_id', recetaId);
 
-    const response = await fetch(
-        url,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error fetching componentes:', errorText);
+    if (error) {
+        console.error('Error fetching componentes:', error);
         return [];
     }
 
-    const data = await response.json();
-    console.log('Componentes recibidos:', data);
-    return data;
+    return (data || []) as unknown as RecetaComponenteConProducto[];
 }
 
 export type CreateComponenteData = {
@@ -465,43 +427,36 @@ export type CreateComponenteData = {
     unidad_medida: string;
     orden?: number;
     costo_unitario: number;
-    moneda?: string; // Added
+    moneda?: string;
 };
 
 /**
  * Agrega un componente a una receta
  */
 export async function addComponenteToReceta(data: CreateComponenteData): Promise<RecetaComponente | null> {
+    const supabase = createClient();
+
     const insertData = {
         ...data,
-        // tenant_id removido
         orden: data.orden || 0,
         costo_subtotal: data.cantidad * data.costo_unitario,
     };
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas_componentes`,
-        {
-            method: 'POST',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify(insertData),
-        }
-    );
+    const { data: result, error } = await supabase
+        .from('recetas_componentes')
+        .insert(insertData)
+        .select()
+        .single();
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error adding componente:', errorText);
-        throw new Error(`Error al agregar componente: ${errorText}`);
+    if (error) {
+        console.error('Error adding componente:', error);
+        throw new Error(`Error al agregar componente: ${error.message}`);
     }
 
     // Actualizar costos de la receta
     await updateRecetaCostos(data.receta_id);
 
-    const result = await response.json();
-    return result[0] || result;
+    return result;
 }
 
 /**
@@ -512,50 +467,45 @@ export async function updateComponente(
     data: { cantidad?: number; costo_unitario?: number; orden?: number; moneda?: string },
     recetaId: string
 ): Promise<RecetaComponente | null> {
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: any = { ...data };
 
     if (data.cantidad !== undefined && data.costo_unitario !== undefined) {
         updateData.costo_subtotal = data.cantidad * data.costo_unitario;
     }
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas_componentes?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify(updateData),
-        }
-    );
+    const { data: result, error } = await supabase
+        .from('recetas_componentes')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
 
-    if (!response.ok) {
-        console.error('Error updating componente:', await response.text());
+    if (error) {
+        console.error('Error updating componente:', error);
         return null;
     }
 
     // Actualizar costos de la receta
     await updateRecetaCostos(recetaId);
 
-    const result = await response.json();
-    return result[0] || null;
+    return result;
 }
 
 /**
  * Elimina un componente
  */
 export async function removeComponente(id: string, recetaId: string): Promise<boolean> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/recetas_componentes?id=eq.${id}`,
-        {
-            method: 'DELETE',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error removing componente:', await response.text());
+    const { error } = await supabase
+        .from('recetas_componentes')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error removing componente:', error);
         return false;
     }
 

@@ -8,7 +8,7 @@ export type TipoMateriaPrima = 'RESINA' | 'PIGMENTO' | 'CARGA' | 'SOLVENTE' | 'A
 export type UnidadMedida = 'KG' | 'LT' | 'UN' | 'MT' | 'GL';
 export type EstadoReceta = 'ACTIVA' | 'INACTIVA' | 'BORRADOR';
 export type EstadoOC = 'BORRADOR' | 'ENVIADA' | 'PARCIAL' | 'RECIBIDA' | 'CANCELADA';
-export type EstadoOP = 'PLANIFICADA' | 'EN_PRODUCCION' | 'COMPLETADA' | 'CANCELADA';
+export type EstadoOP = 'PLANIFICADA' | 'EN_PRODUCCION' | 'COMPLETADA' | 'CANCELADA' | 'PAUSADA';
 export type TipoMovimiento = 'ENTRADA' | 'SALIDA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
 export type OrigenMovimiento = 'REMITO_COMPRA' | 'ORDEN_PRODUCCION' | 'AJUSTE_MANUAL' | 'INVENTARIO_INICIAL' | 'COMPRA' | 'PRODUCCION_PT' | 'CONSUMO_PRODUCCION' | 'DEVOLUCION_PROVEEDOR' | 'TRASPASO_ENTRADA' | 'TRASPASO_SALIDA';
 
@@ -319,6 +319,7 @@ export const EstadoOPLabels: Record<EstadoOP, string> = {
     EN_PRODUCCION: 'En Producción',
     COMPLETADA: 'Completada',
     CANCELADA: 'Cancelada',
+    PAUSADA: 'Pausada',
 };
 
 export const TipoMovimientoLabels: Record<TipoMovimiento, string> = {

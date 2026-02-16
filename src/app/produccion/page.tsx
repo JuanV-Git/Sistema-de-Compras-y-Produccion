@@ -4,13 +4,15 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Badge } from '@/components/ui';
-import { Plus, Search, Factory, Eye, CheckCircle, Clock, Play, Loader2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Plus, Search, Factory, Eye, CheckCircle, Clock, Play, Loader2, TrendingUp, TrendingDown, Trash2 } from 'lucide-react';
 import {
     getOrdenesProduccion,
     cambiarEstadoOrdenProduccion,
+    deleteOrdenProduccion,
     EstadoOPLabels,
     type OrdenProduccionConRelaciones,
 } from '@/services/ordenesProduccion';
+import { ConfirmModal } from '@/components/ui/Modal';
 
 // =====================================================
 // PRODUCCION PAGE
@@ -20,6 +22,11 @@ export default function ProduccionPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [estadoFilter, setEstadoFilter] = useState('');
+    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; orden: OrdenProduccionConRelaciones | null }>({
+        isOpen: false,
+        orden: null
+    });
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         loadOrdenes();
@@ -76,6 +83,20 @@ export default function ProduccionPage() {
     async function handleIniciar(ordenId: string) {
         await cambiarEstadoOrdenProduccion(ordenId, 'EN_PRODUCCION');
         await loadOrdenes();
+    }
+
+    async function handleDelete() {
+        if (!deleteModal.orden) return;
+        setDeleting(true);
+        try {
+            await deleteOrdenProduccion(deleteModal.orden.id);
+            await loadOrdenes();
+            setDeleteModal({ isOpen: false, orden: null });
+        } catch (error: any) {
+            alert(error.message || 'Error al eliminar la orden');
+        } finally {
+            setDeleting(false);
+        }
     }
 
     return (
@@ -201,11 +222,22 @@ export default function ProduccionPage() {
                                             {EstadoOPLabels[orden.estado as keyof typeof EstadoOPLabels] || orden.estado}
                                         </Badge>
                                     </div>
-                                    <Link href={`/produccion/${orden.id}`}>
-                                        <Button variant="ghost" size="sm">
-                                            <Eye className="w-4 h-4" />
+                                    <div className="flex gap-1">
+                                        <Link href={`/produccion/${orden.id}`}>
+                                            <Button variant="ghost" size="sm">
+                                                <Eye className="w-4 h-4" />
+                                            </Button>
+                                        </Link>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="hover:text-[var(--color-danger)] hover:bg-red-900/10"
+                                            onClick={() => setDeleteModal({ isOpen: true, orden })}
+                                            title="Eliminar"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
                                         </Button>
-                                    </Link>
+                                    </div>
                                 </div>
 
                                 <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">
@@ -281,6 +313,17 @@ export default function ProduccionPage() {
                     )}
                 </>
             )}
+
+            <ConfirmModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, orden: null })}
+                onConfirm={handleDelete}
+                title="Eliminar Orden de Producción"
+                message={`¿Estás seguro de eliminar la orden "${deleteModal.orden?.numero}"?`}
+                confirmText="Eliminar"
+                confirmVariant="danger"
+                loading={deleting}
+            />
         </PageContainer>
     );
 }

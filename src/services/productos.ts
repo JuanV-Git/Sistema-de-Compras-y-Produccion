@@ -1,26 +1,13 @@
 // =====================================================
 // SERVICIO DE API REST - PRODUCTOS
 // =====================================================
-// Usando fetch directo a la API REST de Supabase
 
+import { createClient } from '@/lib/supabase/client';
 import type { Producto } from '@/types/database';
 import { TipoProductoPrefixes, type TipoProducto } from '@/types/database';
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-// Headers comunes
-function getHeaders() {
-    return {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-    };
-}
+import { getPrecioProducto } from './precios';
 
 export type { Producto };
-
-import { getPrecioProducto } from './precios';
 
 export type CreateProductoData = Omit<Producto, 'id' | 'created_at' | 'updated_at'>;
 
@@ -29,93 +16,92 @@ export interface ProductoConPrecio extends Producto {
     costo_actual?: number;
 }
 
+// =====================================================
+// CRUD PRODUCTOS
+// =====================================================
+
 /**
  * Obtiene todos los productos
  */
 export async function getProductos(): Promise<Producto[]> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?activo=eq.true&order=codigo`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching productos:', await response.text());
+    const { data, error } = await supabase
+        .from('productos')
+        .select('*')
+        .eq('activo', true)
+        .order('codigo');
+
+    if (error) {
+        console.error('Error fetching productos:', error);
         return [];
     }
 
-    return response.json();
+    return data || [];
 }
 
 /**
  * Obtiene un producto por ID
  */
 export async function getProductoById(id: string): Promise<Producto | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?id=eq.${id}`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching producto:', await response.text());
+    const { data, error } = await supabase
+        .from('productos')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching producto:', error);
         return null;
     }
 
-    const data = await response.json();
-    return data[0] || null;
+    return data;
 }
 
 /**
  * Obtiene productos por tipo
  */
 export async function getProductosPorTipo(tipo: string): Promise<Producto[]> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?tipo=eq.${tipo}&activo=eq.true&order=codigo`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching productos por tipo:', await response.text());
+    const { data, error } = await supabase
+        .from('productos')
+        .select('*')
+        .eq('tipo', tipo)
+        .eq('activo', true)
+        .order('codigo');
+
+    if (error) {
+        console.error('Error fetching productos por tipo:', error);
         return [];
     }
 
-    return response.json();
+    return data || [];
 }
 
 /**
  * Genera el siguiente código de producto
  */
 export async function getNextCodigoProducto(tipo: string): Promise<string> {
-    // @ts-ignore
+    const supabase = createClient();
     const prefix = TipoProductoPrefixes[tipo as TipoProducto] || tipo;
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?tipo=eq.${tipo}&select=codigo&order=codigo.desc&limit=1`,
-        { method: 'GET', headers: getHeaders() }
-    );
+    const { data, error } = await supabase
+        .from('productos')
+        .select('codigo')
+        .eq('tipo', tipo)
+        .order('codigo', { ascending: false })
+        .limit(1);
 
     let maxNum = 0;
-    if (response.ok) {
-        const productos = await response.json();
+    if (!error && data && data.length > 0) {
         const regex = new RegExp(`^${prefix}-(\\d+)$`);
-
-        for (const p of productos) {
-            const match = p.codigo?.match(regex);
-            if (match) {
-                const num = parseInt(match[1], 10);
-                if (num > maxNum) maxNum = num;
-            }
+        const match = data[0].codigo?.match(regex);
+        if (match) {
+            maxNum = parseInt(match[1], 10);
         }
-    } else {
-        // Fallback si falla query, empezamos en 1
     }
 
     const nextNum = maxNum + 1;
@@ -134,20 +120,18 @@ export async function getProductosStockBajo(): Promise<Producto[]> {
  * Actualiza el stock de un producto
  */
 export async function updateProductoStock(id: string, nuevoStock: number): Promise<boolean> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify({
-                stock_actual: nuevoStock,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error updating stock:', await response.text());
+    const { error } = await supabase
+        .from('productos')
+        .update({
+            stock_actual: nuevoStock,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error updating stock:', error);
         return false;
     }
 
@@ -158,27 +142,20 @@ export async function updateProductoStock(id: string, nuevoStock: number): Promi
  * Crea un nuevo producto
  */
 export async function createProducto(producto: CreateProductoData): Promise<Producto | null> {
-    // Ya no inyectamos tenant_id
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos`,
-        {
-            method: 'POST',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify(producto),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error creating producto:', errorText);
-        throw new Error(`Error al crear producto: ${errorText}`);
+    const { data, error } = await supabase
+        .from('productos')
+        .insert(producto)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error creating producto:', error);
+        throw new Error(`Error al crear producto: ${error.message}`);
     }
 
-    const data = await response.json();
-    return data[0] || data;
+    return data;
 }
 
 /**
@@ -188,49 +165,44 @@ export async function updateProducto(
     id: string,
     producto: Partial<CreateProductoData>
 ): Promise<Producto | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify({
-                ...producto,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error updating producto:', await response.text());
+    const { data, error } = await supabase
+        .from('productos')
+        .update({
+            ...producto,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating producto:', error);
         return null;
     }
 
-    const data = await response.json();
-    return data[0] || null;
+    return data;
 }
 
 /**
- * Elimina un producto (soft delete)
+ * Elimina un producto de forma segura (Hard Delete)
+ * Retorna true si se eliminó, o lanza error con detalle si falla (FK constraint)
  */
 export async function deleteProducto(id: string): Promise<boolean> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify({
-                activo: false,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error deleting producto:', await response.text());
-        return false;
+    const { error } = await supabase
+        .from('productos')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        if (error.code === '23503') {
+            throw new Error('No se puede eliminar: El producto tiene movimientos o recetas asociadas.');
+        }
+        console.error('Error deleting producto:', error);
+        throw new Error(error.message);
     }
 
     return true;

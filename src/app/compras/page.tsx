@@ -4,14 +4,20 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Badge } from '@/components/ui';
-import { Plus, Search, ShoppingCart, Eye, CheckCircle, Clock, Building2, Loader2 } from 'lucide-react';
-import { getOrdenesCompra, type OrdenCompraConRelaciones, EstadoOCLabels } from '@/services/ordenesCompra';
+import { Plus, Search, ShoppingCart, Eye, CheckCircle, Clock, Building2, Loader2, Trash2 } from 'lucide-react';
+import { getOrdenesCompra, deleteOrdenCompra, type OrdenCompraConRelaciones, EstadoOCLabels } from '@/services/ordenesCompra';
+import { ConfirmModal } from '@/components/ui/Modal';
 
 export default function ComprasPage() {
     const [ordenes, setOrdenes] = useState<OrdenCompraConRelaciones[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [estadoFilter, setEstadoFilter] = useState('');
+    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; orden: OrdenCompraConRelaciones | null }>({
+        isOpen: false,
+        orden: null
+    });
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         loadOrdenes();
@@ -58,6 +64,20 @@ export default function ComprasPage() {
 
     function formatDate(dateStr: string): string {
         return new Date(dateStr).toLocaleDateString('es-AR');
+    }
+
+    async function handleDelete() {
+        if (!deleteModal.orden) return;
+        setDeleting(true);
+        try {
+            await deleteOrdenCompra(deleteModal.orden.id);
+            await loadOrdenes();
+            setDeleteModal({ isOpen: false, orden: null });
+        } catch (error: any) {
+            alert(error.message || 'Error al eliminar la orden');
+        } finally {
+            setDeleting(false);
+        }
     }
 
     return (
@@ -193,11 +213,22 @@ export default function ComprasPage() {
                                                 </Badge>
                                             </td>
                                             <td className="py-3 px-4 text-center">
-                                                <Link href={`/compras/${orden.id}`}>
-                                                    <Button variant="ghost" size="sm">
-                                                        <Eye className="w-4 h-4" /> Ver
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <Link href={`/compras/${orden.id}`}>
+                                                        <Button variant="ghost" size="sm">
+                                                            <Eye className="w-4 h-4" /> Ver
+                                                        </Button>
+                                                    </Link>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="hover:text-[var(--color-danger)] hover:bg-red-900/10"
+                                                        onClick={() => setDeleteModal({ isOpen: true, orden })}
+                                                        title="Eliminar"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
                                                     </Button>
-                                                </Link>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -219,6 +250,17 @@ export default function ComprasPage() {
                     </>
                 )}
             </Card>
+
+            <ConfirmModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, orden: null })}
+                onConfirm={handleDelete}
+                title="Eliminar Orden de Compra"
+                message={`¿Estás seguro de eliminar la orden "${deleteModal.orden?.numero}"?`}
+                confirmText="Eliminar"
+                confirmVariant="danger"
+                loading={deleting}
+            />
         </PageContainer>
     );
 }

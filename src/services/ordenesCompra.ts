@@ -3,18 +3,9 @@
 // =====================================================
 // CRUD completo para órdenes de compra y sus items
 
+import { createClient } from '@/lib/supabase/client';
 import type { OrdenCompra, OrdenCompraItem, Proveedor, Producto } from '@/types/database';
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-function getHeaders() {
-    return {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-    };
-}
+import { registrarRecepcionCompra } from './stock'; // Importamos dinamicamente si es necesario para evitar ciclos
 
 export type { OrdenCompra, OrdenCompraItem };
 
@@ -45,68 +36,64 @@ export interface OrdenCompraItemConProducto extends OrdenCompraItem {
  * Obtiene todas las órdenes de compra con datos del proveedor
  */
 export async function getOrdenesCompra(): Promise<OrdenCompraConRelaciones[]> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra?select=*,proveedor:proveedores(id,codigo,nombre)&order=created_at.desc`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching ordenes de compra:', await response.text());
+    const { data, error } = await supabase
+        .from('ordenes_compra')
+        .select('*, proveedor:proveedores(id,codigo,nombre)')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching ordenes de compra:', error);
         return [];
     }
 
-    return response.json();
+    // Casteo para ajustar el tipo de retorno si es necesario
+    return (data || []) as unknown as OrdenCompraConRelaciones[];
 }
 
 /**
  * Obtiene una orden de compra por ID con items y proveedor
  */
 export async function getOrdenCompraById(id: string): Promise<OrdenCompraConRelaciones | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra?id=eq.${id}&select=*,proveedor:proveedores(*)`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching orden de compra:', await response.text());
+    const { data, error } = await supabase
+        .from('ordenes_compra')
+        .select('*, proveedor:proveedores(*)')
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching orden de compra:', error);
         return null;
     }
 
-    const data = await response.json();
-    if (!data[0]) return null;
+    if (!data) return null;
 
     // Obtener items
     const items = await getItemsByOrden(id);
-    return { ...data[0], items };
+    return { ...data, items } as unknown as OrdenCompraConRelaciones;
 }
 
 /**
  * Genera el siguiente número de OC disponible (OC-YYYYMM-NNN)
  */
 export async function getNextNumeroOC(): Promise<string> {
+    const supabase = createClient();
     const now = new Date();
     const prefix = `OC-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra?numero=like.${prefix}*&select=numero&order=numero.desc&limit=1`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const { data } = await supabase
+        .from('ordenes_compra')
+        .select('numero')
+        .ilike('numero', `${prefix}%`)
+        .order('numero', { ascending: false })
+        .limit(1);
 
-    if (!response.ok) {
+    if (!data || data.length === 0) {
         return `${prefix}-001`;
     }
-
-    const data = await response.json();
-    if (!data[0]) return `${prefix}-001`;
 
     const lastNum = data[0].numero;
     const match = lastNum.match(/-(\d{3})$/);
@@ -129,84 +116,90 @@ export type CreateOrdenCompraData = {
  * Crea una nueva orden de compra
  */
 export async function createOrdenCompra(data: CreateOrdenCompraData): Promise<OrdenCompra | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra`,
-        {
-            method: 'POST',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify({
-                ...data,
-                // tenant_id removido
-                estado: 'BORRADOR',
-                subtotal: 0,
-                iva: 0,
-                total: 0,
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error creating orden de compra:', await response.text());
+    const insertData = {
+        ...data,
+        estado: 'BORRADOR',
+        subtotal: 0,
+        iva: 0,
+        total: 0,
+    };
+
+    const { data: result, error } = await supabase
+        .from('ordenes_compra')
+        .insert(insertData)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error creating orden de compra:', error);
         return null;
     }
 
-    const result = await response.json();
-    return result[0] || null;
+    return result;
 }
 
 /**
  * Actualiza una orden de compra
  */
 export async function updateOrdenCompra(id: string, data: Partial<OrdenCompra>): Promise<OrdenCompra | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify({
-                ...data,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error updating orden de compra:', await response.text());
+    const { data: result, error } = await supabase
+        .from('ordenes_compra')
+        .update({
+            ...data,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating orden de compra:', error);
         return null;
     }
 
-    const result = await response.json();
-    return result[0] || null;
+    return result;
 }
 
 /**
- * Elimina una orden de compra (solo si está en borrador)
+ * Elimina una orden de compra de forma segura.
+ * Intenta eliminar primero los items y luego la orden.
+ * Si hay restricciones (ej: recepciones parciales que generaron stock), la BD podría bloquearlo (aunque stock es otra tabla).
  */
 export async function deleteOrdenCompra(id: string): Promise<boolean> {
-    // Primero eliminar items
-    await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra_items?orden_compra_id=eq.${id}`,
-        {
-            method: 'DELETE',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra?id=eq.${id}`,
-        {
-            method: 'DELETE',
-            headers: getHeaders(),
-        }
-    );
+    // 1. Intentar borrar items primero (Hard Delete)
+    const { error: itemsError } = await supabase
+        .from('ordenes_compra_items')
+        .delete()
+        .eq('orden_compra_id', id);
 
-    return response.ok;
+    if (itemsError) {
+        console.error('Error deleting orden items:', itemsError);
+        // Si fallan items, probablemente no podamos borrar la orden.
+        // Pero intentamos seguir o lanzamos error?
+        throw new Error(`No se pueden eliminar los items: ${itemsError.message}`);
+    }
+
+    // 2. Borrar la orden
+    const { error } = await supabase
+        .from('ordenes_compra')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        if (error.code === '23503') {
+            throw new Error('No se puede eliminar la orden porque tiene registros asociados.');
+        }
+        console.error('Error deleting orden:', error);
+        throw new Error(error.message);
+    }
+
+    return true;
 }
 
 // =====================================================
@@ -217,20 +210,20 @@ export async function deleteOrdenCompra(id: string): Promise<boolean> {
  * Obtiene items de una orden con datos del producto
  */
 export async function getItemsByOrden(ordenId: string): Promise<OrdenCompraItemConProducto[]> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra_items?orden_compra_id=eq.${ordenId}&select=*,producto:productos(id,codigo,nombre,unidad_medida,costo_unitario)&order=created_at`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching items:', await response.text());
+    const { data, error } = await supabase
+        .from('ordenes_compra_items')
+        .select('*, producto:productos(id,codigo,nombre,unidad_medida,costo_unitario)')
+        .eq('orden_compra_id', ordenId)
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching items:', error);
         return [];
     }
 
-    return response.json();
+    return (data || []) as unknown as OrdenCompraItemConProducto[];
 }
 
 export type CreateItemData = {
@@ -244,75 +237,69 @@ export type CreateItemData = {
  * Agrega un item a la orden de compra
  */
 export async function addItemToOrden(data: CreateItemData): Promise<OrdenCompraItem | null> {
+    const supabase = createClient();
     const subtotal = data.cantidad_pedida * data.precio_unitario;
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra_items`,
-        {
-            method: 'POST',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify({
-                ...data,
-                // tenant_id removido
-                cantidad_recibida: 0,
-                subtotal,
-                estado: 'PENDIENTE',
-            }),
-        }
-    );
+    const { data: result, error } = await supabase
+        .from('ordenes_compra_items')
+        .insert({
+            ...data,
+            cantidad_recibida: 0,
+            subtotal,
+            estado: 'PENDIENTE',
+        })
+        .select()
+        .single();
 
-    if (!response.ok) {
-        console.error('Error adding item:', await response.text());
+    if (error) {
+        console.error('Error adding item:', error);
         return null;
     }
 
     // Recalcular totales de la orden
     await recalcularTotalesOrden(data.orden_compra_id);
 
-    const result = await response.json();
-    return result[0] || null;
+    return result;
 }
 
 /**
  * Actualiza un item
  */
 export async function updateItem(id: string, data: Partial<OrdenCompraItem>, ordenId: string): Promise<boolean> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra_items?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify(data),
-        }
-    );
+    const supabase = createClient();
 
-    if (response.ok) {
-        await recalcularTotalesOrden(ordenId);
+    const { error } = await supabase
+        .from('ordenes_compra_items')
+        .update(data)
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error updating item:', error);
+        return false;
     }
 
-    return response.ok;
+    await recalcularTotalesOrden(ordenId);
+    return true;
 }
 
 /**
  * Elimina un item de la orden
  */
 export async function removeItem(id: string, ordenId: string): Promise<boolean> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/ordenes_compra_items?id=eq.${id}`,
-        {
-            method: 'DELETE',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (response.ok) {
-        await recalcularTotalesOrden(ordenId);
+    const { error } = await supabase
+        .from('ordenes_compra_items')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error removing item:', error);
+        return false;
     }
 
-    return response.ok;
+    await recalcularTotalesOrden(ordenId);
+    return true;
 }
 
 /**
@@ -342,7 +329,8 @@ export async function registrarItemsRecibidos(
     ordenId: string,
     itemsRecibidos: { id: string; cantidad: number; cerrar_pendiente: boolean }[]
 ): Promise<boolean> {
-    const { registrarRecepcionCompra } = await import('./stock');
+    // Importación dinámica para evitar ciclos si fuera necesario, aunque ya importamos arriba
+    // const { registrarRecepcionCompra } = await import('./stock');
 
     // Obtener orden para el número
     const orden = await getOrdenCompraById(ordenId);
@@ -350,9 +338,6 @@ export async function registrarItemsRecibidos(
 
     // Obtener items actuales
     const itemsActuales = await getItemsByOrden(ordenId);
-
-    let todosCompletados = true;
-    let algunRecibido = false;
 
     for (const recibido of itemsRecibidos) {
         if (recibido.cantidad <= 0 && !recibido.cerrar_pendiente) continue;
@@ -379,7 +364,7 @@ export async function registrarItemsRecibidos(
                     orden.id,
                     itemActual.precio_unitario
                 );
-                algunRecibido = true;
+                // algunRecibido flag removed as it was unused
             } catch (error) {
                 console.error(`Error registrando stock para item ${itemActual.id}:`, error);
             }

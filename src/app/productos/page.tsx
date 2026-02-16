@@ -69,16 +69,17 @@ export default function ProductosPage() {
         if (!deleteModal.producto) return;
 
         setDeleting(true);
-        const success = await deleteProducto(deleteModal.producto.id);
-        setDeleting(false);
+        try {
+            await deleteProducto(deleteModal.producto.id);
 
-        if (success) {
             // Recargar lista
             const data = await getProductos();
             setProductos(data);
             setDeleteModal({ isOpen: false, producto: null });
-        } else {
-            alert('Error al eliminar el producto');
+        } catch (error: any) {
+            alert(error.message || 'Error al eliminar el producto');
+        } finally {
+            setDeleting(false);
         }
     }
 

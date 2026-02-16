@@ -32,7 +32,7 @@ export async function getListasPrecios(tipo?: 'COSTO' | 'VENTA'): Promise<ListaP
     return data || [];
 }
 
-export async function createListaPrecio(data: Pick<ListaPrecio, 'nombre' | 'tipo' | 'descripcion'>): Promise<{ data: ListaPrecio | null, error: any }> {
+export async function createListaPrecio(data: Pick<ListaPrecio, 'nombre' | 'tipo' | 'descripcion'>): Promise<{ data: ListaPrecio | null, error: unknown }> {
     const supabase = createClient();
 
     const insertData = {
@@ -52,6 +52,25 @@ export async function createListaPrecio(data: Pick<ListaPrecio, 'nombre' | 'tipo
     }
 
     return { data: result, error: null };
+}
+
+export async function deleteListaPrecio(id: string): Promise<boolean> {
+    const supabase = createClient();
+
+    const { error } = await supabase
+        .from('listas_precios')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        if (error.code === '23503') {
+            throw new Error('No se puede eliminar la lista porque está asignada a productos.');
+        }
+        console.error('Error deleting lista precios:', error);
+        throw new Error(error.message);
+    }
+
+    return true;
 }
 
 // =====================================================
