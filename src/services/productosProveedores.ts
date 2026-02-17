@@ -1,23 +1,12 @@
 // =====================================================
-// SERVICIO DE API REST - PRODUCTOS PROVEEDORES
+// SERVICIO DE API - PRODUCTOS PROVEEDORES
 // =====================================================
 // Gestiona la relación N:M entre productos y proveedores
-// Cada producto puede tener múltiples proveedores con códigos alternativos
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-function getHeaders() {
-    return {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-    };
-}
+import { createClient } from '@/lib/supabase/client';
 
 export interface ProductoProveedor {
     id: string;
-    // tenant_id removido
     producto_id: string;
     proveedor_id: string;
     codigo_alternativo?: string;
@@ -47,75 +36,65 @@ export interface CreateProductoProveedorData {
  * incluyendo datos del proveedor (JOIN)
  */
 export async function getProveedoresByProducto(productoId: string): Promise<ProductoProveedorConProveedor[]> {
-    // Supabase REST API permite hacer joins con select=*,proveedor:proveedores(id,codigo,nombre)
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos_proveedores?producto_id=eq.${productoId}&select=*,proveedor:proveedores(id,codigo,nombre)`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching proveedores by producto:', await response.text());
+    const { data, error } = await supabase
+        .from('productos_proveedores')
+        .select('*, proveedor:proveedores(id, codigo, nombre)')
+        .eq('producto_id', productoId);
+
+    if (error) {
+        console.error('Error fetching proveedores by producto:', error);
         return [];
     }
 
-    return response.json();
+    return (data || []) as ProductoProveedorConProveedor[];
 }
 
 /**
  * Obtiene todos los productos de un proveedor
  */
 export async function getProductosByProveedor(proveedorId: string): Promise<ProductoProveedor[]> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos_proveedores?proveedor_id=eq.${proveedorId}&select=*,producto:productos(id,codigo,nombre)`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching productos by proveedor:', await response.text());
+    const { data, error } = await supabase
+        .from('productos_proveedores')
+        .select('*, producto:productos(id, codigo, nombre)')
+        .eq('proveedor_id', proveedorId);
+
+    if (error) {
+        console.error('Error fetching productos by proveedor:', error);
         return [];
     }
 
-    return response.json();
+    return data || [];
 }
 
 /**
  * Asocia un proveedor a un producto con código alternativo
  */
 export async function addProveedorToProducto(data: CreateProductoProveedorData): Promise<ProductoProveedor | null> {
+    const supabase = createClient();
+
     const insertData = {
         ...data,
-        // tenant_id removido
         es_principal: data.es_principal ?? false,
     };
 
     console.log('Adding proveedor to producto:', insertData);
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos_proveedores`,
-        {
-            method: 'POST',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify(insertData),
-        }
-    );
+    const { data: result, error } = await supabase
+        .from('productos_proveedores')
+        .insert([insertData])
+        .select()
+        .single();
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error adding proveedor to producto:', errorText);
-        throw new Error(`Error al asociar proveedor: ${errorText}`);
+    if (error) {
+        console.error('Error adding proveedor to producto:', error);
+        throw new Error(`Error al asociar proveedor: ${JSON.stringify(error)}`);
     }
 
-    const result = await response.json();
-    return result[0] || result;
+    return result;
 }
 
 /**
@@ -125,41 +104,36 @@ export async function updateProductoProveedor(
     id: string,
     data: Partial<Omit<CreateProductoProveedorData, 'producto_id' | 'proveedor_id'>>
 ): Promise<ProductoProveedor | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos_proveedores?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify(data),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error updating producto_proveedor:', await response.text());
+    const { data: result, error } = await supabase
+        .from('productos_proveedores')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating producto_proveedor:', error);
         return null;
     }
 
-    const result = await response.json();
-    return result[0] || null;
+    return result;
 }
 
 /**
  * Elimina la asociación entre producto y proveedor
  */
 export async function removeProveedorFromProducto(id: string): Promise<boolean> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos_proveedores?id=eq.${id}`,
-        {
-            method: 'DELETE',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error removing proveedor from producto:', await response.text());
+    const { error } = await supabase
+        .from('productos_proveedores')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error removing proveedor from producto:', error);
         return false;
     }
 
@@ -171,33 +145,27 @@ export async function removeProveedorFromProducto(id: string): Promise<boolean> 
  * (desmarca los demás)
  */
 export async function setProveedorPrincipal(productoId: string, productoProveedorId: string): Promise<boolean> {
-    // Primero desmarcar todos como no principal
-    const resetResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos_proveedores?producto_id=eq.${productoId}`,
-        {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify({ es_principal: false }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!resetResponse.ok) {
-        console.error('Error resetting es_principal:', await resetResponse.text());
+    // Primero desmarcar todos como no principal
+    const { error: resetError } = await supabase
+        .from('productos_proveedores')
+        .update({ es_principal: false })
+        .eq('producto_id', productoId);
+
+    if (resetError) {
+        console.error('Error resetting es_principal:', resetError);
         return false;
     }
 
     // Luego marcar el seleccionado como principal
-    const setResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos_proveedores?id=eq.${productoProveedorId}`,
-        {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify({ es_principal: true }),
-        }
-    );
+    const { error: setError } = await supabase
+        .from('productos_proveedores')
+        .update({ es_principal: true })
+        .eq('id', productoProveedorId);
 
-    if (!setResponse.ok) {
-        console.error('Error setting es_principal:', await setResponse.text());
+    if (setError) {
+        console.error('Error setting es_principal:', setError);
         return false;
     }
 
