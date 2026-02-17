@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout';
-import { Card, Button, Select } from '@/components/ui';
-import { ArrowLeft, Save, Package, ArrowUpRight, ArrowDownRight, RotateCcw } from 'lucide-react';
+import { Card, Button } from '@/components/ui';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, RotateCcw, Save } from 'lucide-react';
 import Link from 'next/link';
 import { getProductos } from '@/services/productos';
 import { crearMovimientoStock, type OrigenMovimiento, type TipoMovimiento } from '@/services/stock';
@@ -18,7 +17,6 @@ const TIPOS_AJUSTE = [
 ];
 
 export default function AjusteStockPage() {
-    const router = useRouter();
     const [productos, setProductos] = useState<Producto[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -90,9 +88,8 @@ export default function AjusteStockPage() {
                 cantidad: '',
                 observaciones: '',
             });
-        } catch (err: any) {
-            console.error('Error:', err);
-            setError(err.message || 'Error al registrar movimiento');
+        } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+            setError(error.message || 'Error al procesar el ajuste');
         } finally {
             setSaving(false);
         }
@@ -133,8 +130,8 @@ export default function AjusteStockPage() {
                                             type="button"
                                             onClick={() => setForm({ ...form, tipo_ajuste: tipo.value })}
                                             className={`p-4 rounded-lg border-2 transition-all ${isSelected
-                                                    ? 'border-[var(--accent-gold)] bg-[var(--accent-gold)]/10'
-                                                    : 'border-[var(--border-default)] hover:border-[var(--border-subtle)]'
+                                                ? 'border-[var(--accent-gold)] bg-[var(--accent-gold)]/10'
+                                                : 'border-[var(--border-default)] hover:border-[var(--border-subtle)]'
                                                 }`}
                                         >
                                             <Icon

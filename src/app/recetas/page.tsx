@@ -61,7 +61,7 @@ export default function RecetasPage() {
     }), [recetas]);
 
     async function handleRecalcularCostos() {
-        if (!confirm('¿Desea recalcular los costos de TODAS las recetas basándose en las listas de precios actuales? Esto puede tomar unos momentos.')) return;
+        if (!confirm('¿Desea recalcular los costos de TODAS las recetas basándose en los costos de insumos actuales? Esto puede tomar unos momentos.')) return;
 
         setUpdating(true);
         try {
@@ -87,7 +87,7 @@ export default function RecetasPage() {
             await deleteReceta(deleteModal.receta.id);
             await loadRecetas();
             setDeleteModal({ isOpen: false, receta: null });
-        } catch (error: any) {
+        } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             alert(error.message || 'Error al eliminar la receta');
         } finally {
             setDeleting(false);

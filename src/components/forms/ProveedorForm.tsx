@@ -25,8 +25,8 @@ export function ProveedorForm({ proveedor, mode }: ProveedorFormProps) {
         nombre: proveedor?.nombre || '',
         razon_social: proveedor?.razon_social || '',
         cuit: proveedor?.cuit || '',
-        email: proveedor?.email || '',
-        telefono: proveedor?.telefono || '',
+        email: (proveedor?.details as any)?.email || '',
+        telefono: (proveedor?.details as any)?.telefono || '',
         direccion: proveedor?.direccion || '',
         contacto_nombre: proveedor?.contacto_nombre || '',
         contacto_email: proveedor?.contacto_email || '',
@@ -61,14 +61,15 @@ export function ProveedorForm({ proveedor, mode }: ProveedorFormProps) {
                 nombre: formData.nombre,
                 razon_social: formData.razon_social || undefined,
                 cuit: formData.cuit || undefined,
-                email: formData.email || undefined,
-                telefono: formData.telefono || undefined,
-                direccion: formData.direccion || undefined,
                 contacto_nombre: formData.contacto_nombre || undefined,
                 contacto_email: formData.contacto_email || undefined,
                 contacto_telefono: formData.contacto_telefono || undefined,
                 condicion_pago: formData.condicion_pago || undefined,
                 plazo_entrega_dias: parseInt(formData.plazo_entrega_dias) || 15,
+                details: {
+                    email: formData.email,
+                    telefono: formData.telefono
+                },
                 activo: true,
             };
 
@@ -76,6 +77,7 @@ export function ProveedorForm({ proveedor, mode }: ProveedorFormProps) {
             if (mode === 'edit' && proveedor) {
                 result = await updateProveedor(proveedor.id, data);
             } else {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 result = await createProveedor(data as any);
             }
 
@@ -86,7 +88,7 @@ export function ProveedorForm({ proveedor, mode }: ProveedorFormProps) {
 
             router.push('/proveedores');
             router.refresh();
-        } catch (err) {
+        } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
             setError(`Error al guardar: ${errorMessage}`);
             console.error('Full error:', err);

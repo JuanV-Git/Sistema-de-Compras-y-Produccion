@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Badge, Select } from '@/components/ui';
 import { ArrowLeft, Trash2, Loader2, Plus, Edit2, Save, Package, Calculator, X } from 'lucide-react';
@@ -11,7 +11,6 @@ import {
     getComponentesByReceta,
     addComponenteToReceta,
     removeComponente,
-    updateRecetaCostos,
     actualizarCostosRecetaDesdeInsumos, // Importar función
     type RecetaComponenteConProducto,
 } from '@/services/recetas';
@@ -20,7 +19,6 @@ import type { Receta, Producto } from '@/types/database';
 
 export default function RecetaDetallePage() {
     const params = useParams();
-    const router = useRouter();
     const recetaId = params.id as string;
 
     const [receta, setReceta] = useState<Receta | null>(null);
@@ -39,24 +37,32 @@ export default function RecetaDetallePage() {
     // Estado para actualizar costos
     const [updatingCostos, setUpdatingCostos] = useState(false);
 
+    async function loadData() {
+        if (!recetaId) return;
+        setLoading(true);
+        try {
+            const [recetaData, componentesData, productosData] = await Promise.all([
+                getRecetaById(recetaId),
+                getComponentesByReceta(recetaId),
+                getProductos(),
+            ]);
+
+            setReceta(recetaData);
+            setComponentes(componentesData);
+            // Filtrar productos que pueden ser componentes (no productos terminados)
+            const tiposValidos = ['MATERIA_PRIMA', 'MP', 'INSUMO', 'ENVASE', 'ETIQUETA'];
+            setProductos(productosData.filter(p => tiposValidos.includes(p.tipo)));
+        } catch (error) {
+            console.error('Error loading receta:', error);
+        } finally {
+            setLoading(false);
+        }
+    }
+
     useEffect(() => {
         loadData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [recetaId]);
-
-    async function loadData() {
-        setLoading(true);
-        const [recetaData, componentesData, productosData] = await Promise.all([
-            getRecetaById(recetaId),
-            getComponentesByReceta(recetaId),
-            getProductos(),
-        ]);
-        setReceta(recetaData);
-        setComponentes(componentesData);
-        // Filtrar productos que pueden ser componentes (no productos terminados)
-        const tiposValidos = ['MATERIA_PRIMA', 'MP', 'INSUMO', 'ENVASE', 'ETIQUETA'];
-        setProductos(productosData.filter(p => tiposValidos.includes(p.tipo)));
-        setLoading(false);
-    }
 
     async function handleAddComponente(e: React.FormEvent) {
         e.preventDefault();
@@ -82,7 +88,7 @@ export default function RecetaDetallePage() {
             setNewComponente({ producto_id: '', cantidad: '' });
             setShowAddForm(false);
             await loadData();
-        } catch (error: any) {
+        } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error('Error adding componente:', error);
             alert(`Error al guardar: ${error.message}`);
         }

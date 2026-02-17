@@ -73,8 +73,9 @@ export default function ComprasPage() {
             await deleteOrdenCompra(deleteModal.orden.id);
             await loadOrdenes();
             setDeleteModal({ isOpen: false, orden: null });
-        } catch (error: any) {
-            alert(error.message || 'Error al eliminar la orden');
+        } catch (error) {
+            console.error('Error deleting:', error);
+            alert('Error al eliminar la orden');
         } finally {
             setDeleting(false);
         }

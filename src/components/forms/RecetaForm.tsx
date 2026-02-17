@@ -39,12 +39,13 @@ export function RecetaForm({ receta, mode }: RecetaFormProps) {
     const [error, setError] = useState<string | null>(null);
     const [loadingCodigo, setLoadingCodigo] = useState(mode === 'create');
 
-    // Form state
     const [formData, setFormData] = useState({
         codigo: receta?.codigo || '',
         nombre: receta?.nombre || '',
         version: receta?.version?.toString() || '1',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         tipo_base: (receta as any)?.tipo_base || '',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         peso_especifico: (receta as any)?.peso_especifico?.toString() || '',
         cantidad_producida: receta?.cantidad_producida?.toString() || '1',
         unidad_medida: receta?.unidad_medida || 'KG',

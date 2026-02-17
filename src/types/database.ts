@@ -44,28 +44,19 @@ export interface Configuracion {
     moneda_principal: string;
     logo_url?: string;
     theme_color: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     params: Record<string, any>;
     created_at: string;
-    updated_at: string;
-}
-
-export interface Tenant {
-    id: string;
-    nombre: string;
-    slug: string;
-    configuracion: TenantSettings;
-    plan: string;
-    created_at: string;
-}
-
-export interface Usuario {
-    id: string;
-    auth_user_id: string;
-    email: string;
-    nombre: string;
-    rol: string;
-    activo: boolean;
-    created_at: string;
+    // ... (skipping to details)
+    cuit?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    details?: any;
+    direccion?: string;
+    contacto_nombre?: string;
+    contacto_email?: string;
+    contacto_telefono?: string;
+    condicion_pago?: string;
+    plazo_entrega_dias: number;
     updated_at: string;
 }
 
@@ -89,16 +80,14 @@ export interface Producto {
     updated_at: string;
 }
 
-
-
 export interface Proveedor {
     id: string;
     codigo: string;
     nombre: string;
     razon_social?: string;
     cuit?: string;
-    email?: string;
-    telefono?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    details?: any;
     direccion?: string;
     contacto_nombre?: string;
     contacto_email?: string;

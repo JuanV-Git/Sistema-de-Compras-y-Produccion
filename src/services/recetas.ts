@@ -4,7 +4,6 @@
 
 import { createClient } from '@/lib/supabase/client';
 import type { Receta, RecetaComponente, EstadoReceta } from '@/types/database';
-import { getPrecioProducto } from './precios'; // Importar servicio precios
 import { getTipoCambio } from './configuracion'; // Importar tipo cambio
 import { updateProducto } from './productos'; // Importar updateProducto
 

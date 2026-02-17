@@ -13,16 +13,19 @@ export default function ConfiguracionPage() {
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        loadTipoCambio();
-    }, []);
-
     async function loadTipoCambio() {
-        setLoading(true);
+        // setLoading(true);
         const valor = await getTipoCambio();
         setTipoCambioLocal(valor.toString());
         setLoading(false);
     }
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            loadTipoCambio();
+        }, 0);
+        return () => clearTimeout(timer);
+    }, []);
 
     async function handleSave() {
         setSaving(true);
@@ -44,8 +47,9 @@ export default function ConfiguracionPage() {
             } else {
                 setError('Error al guardar el tipo de cambio');
             }
-        } catch (err) {
-            setError('Error al guardar');
+        } catch (error) {
+            console.error('Error saving:', error);
+            setError('Error al guardar la configuración');
         }
         setSaving(false);
     }

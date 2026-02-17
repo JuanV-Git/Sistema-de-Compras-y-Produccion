@@ -76,7 +76,7 @@ export default function ProductosPage() {
             const data = await getProductos();
             setProductos(data);
             setDeleteModal({ isOpen: false, producto: null });
-        } catch (error: any) {
+        } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             alert(error.message || 'Error al eliminar el producto');
         } finally {
             setDeleting(false);

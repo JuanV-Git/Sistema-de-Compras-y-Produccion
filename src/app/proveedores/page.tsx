@@ -108,16 +108,16 @@ export default function ProveedoresPage() {
                                 </div>
 
                                 <div className="space-y-2 text-sm mb-4">
-                                    {proveedor.telefono && (
+                                    {proveedor.contacto_telefono && (
                                         <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                                             <Phone className="w-4 h-4" />
-                                            <span>{proveedor.telefono}</span>
+                                            <span>{proveedor.contacto_telefono}</span>
                                         </div>
                                     )}
-                                    {proveedor.email && (
+                                    {proveedor.contacto_email && (
                                         <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                                             <Mail className="w-4 h-4" />
-                                            <span>{proveedor.email}</span>
+                                            <span>{proveedor.contacto_email}</span>
                                         </div>
                                     )}
                                     {proveedor.direccion && (

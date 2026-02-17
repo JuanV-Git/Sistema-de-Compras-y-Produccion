@@ -3,7 +3,7 @@
 // =====================================================
 
 import { TipoProducto } from './index';
-import { Receta, ComponenteReceta, mockRecetas, mockProductosConCosto, calcularCostoReceta } from './recetas';
+import { mockRecetas, mockProductosConCosto, calcularCostoReceta } from './recetas';
 
 // Estados de OP
 export type EstadoOP = 'ABIERTA' | 'EN_PROCESO' | 'CERRADA' | 'CANCELADA';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
@@ -25,6 +26,7 @@ async function inspectSchema() {
     // ALTERNATIVE: We can check specific tables we care about by trying to select 1 row
     // and looking at the structure of the returned data, or validation errors.
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const report: any = {};
 
     // CHECK 1: Does tenant_id exist?

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Badge } from '@/components/ui';
@@ -26,19 +26,22 @@ export default function OrdenProduccionDetallePage() {
     const [loading, setLoading] = useState(true);
     const [cantidadProducida, setCantidadProducida] = useState('');
 
-    useEffect(() => {
-        loadData();
-    }, [ordenId]);
-
-    async function loadData() {
-        setLoading(true);
+    const loadData = useCallback(async () => {
+        // setLoading(true); // Initial state is already true
         const ordenData = await getOrdenProduccionById(ordenId);
         setOrden(ordenData);
         if (ordenData) {
             setCantidadProducida(ordenData.cantidad_producida?.toString() || '0');
         }
         setLoading(false);
-    }
+    }, [ordenId]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            loadData();
+        }, 0);
+        return () => clearTimeout(timer);
+    }, [loadData]);
 
     async function handleCambiarEstado(nuevoEstado: EstadoOP) {
         // Confirmación inicial

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Button, Badge } from '@/components/ui';
 import { Plus, Trash2, Star, Edit2, Save, X, Building2, Loader2 } from 'lucide-react';
 import { getProveedores, type Proveedor } from '@/services/proveedores';
@@ -38,25 +38,26 @@ export function ProductoProveedoresSection({ productoId }: Props) {
         precio_unitario: '',
     });
 
-    // Cargar datos
-    useEffect(() => {
-        loadData();
-    }, [productoId]);
-
-    async function loadData() {
-        setLoading(true);
+    const loadData = useCallback(async () => {
+        // setLoading(true); // Removed to avoid setState warning in useEffect
         try {
-            const [ppData, provData] = await Promise.all([
-                getProveedoresByProducto(productoId),
+            const [provs, provsProducto] = await Promise.all([
                 getProveedores(),
+                getProveedoresByProducto(productoId)
             ]);
-            setProductosProveedores(ppData);
-            setProveedoresDisponibles(provData);
-        } catch (error) {
-            console.error('Error loading data:', error);
+            setProveedoresDisponibles(provs.filter(p => p.activo));
+            setProductosProveedores(provsProducto);
+        } catch (err) {
+            console.error(err);
         }
         setLoading(false);
-    }
+    }, [productoId]);
+
+    // Cargar datos
+    useEffect(() => {
+        // eslint-disable-next-line
+        loadData();
+    }, [loadData]);
 
     // Proveedores que aún no están asociados
     const proveedoresNoAsociados = proveedoresDisponibles.filter(
@@ -77,6 +78,7 @@ export function ProductoProveedoresSection({ productoId }: Props) {
 
             setNewProveedor({ proveedor_id: '', codigo_alternativo: '', precio_unitario: '' });
             setShowAddForm(false);
+            setLoading(true);
             await loadData();
         } catch (error) {
             console.error('Error adding proveedor:', error);

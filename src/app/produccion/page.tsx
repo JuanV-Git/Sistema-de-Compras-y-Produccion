@@ -92,8 +92,8 @@ export default function ProduccionPage() {
             await deleteOrdenProduccion(deleteModal.orden.id);
             await loadOrdenes();
             setDeleteModal({ isOpen: false, orden: null });
-        } catch (error: any) {
-            alert(error.message || 'Error al eliminar la orden');
+        } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+            alert(error.message || 'Error al eliminar la OP');
         } finally {
             setDeleting(false);
         }

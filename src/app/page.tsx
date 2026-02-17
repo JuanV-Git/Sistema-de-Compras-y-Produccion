@@ -7,31 +7,30 @@ import { Card, Badge, Button } from '@/components/ui';
 import {
   Factory,
   ShoppingCart,
-  AlertTriangle,
   TrendingUp,
-  TrendingDown,
   Package,
+  AlertTriangle,
+  Loader2,
+  Truck,
+  DollarSign,
   ArrowRight,
-  Clock,
   Warehouse,
   FlaskConical,
-  DollarSign,
-  Play,
   CheckCircle,
-  FileText,
-  Truck,
-  Loader2,
 } from 'lucide-react';
 import { formatearCosto } from '@/types/recetas';
 import {
+  getOrdenesProduccion,
+  type OrdenProduccionConRelaciones,
+} from '@/services/ordenesProduccion';
+import { getProductos } from '@/services/productos';
+import {
   getResumenStock,
-  getNivelStockColor,
   calcularNivelStock,
+  getNivelStockColor,
   type ProductoStock
 } from '@/types/stock';
-import { getOrdenesProduccion, type OrdenProduccionConRelaciones } from '@/services/ordenesProduccion';
-import { getProductos } from '@/services/productos';
-import { getOrdenesCompra, type OrdenCompraConRelaciones } from '@/services/ordenesCompra';
+import { getOrdenesCompra } from '@/services/ordenesCompra';
 
 // =====================================================
 // STATS CARD COMPONENT
@@ -127,7 +126,7 @@ export default function HomePage() {
 
         // 2. Process Stock
         const productosProcesados: ProductoStock[] = productosDb.map(p => {
-          const { nivel, porcentaje } = calcularNivelStock(p.stock_actual, p.stock_minimo, p.stock_maximo);
+          const { nivel, porcentaje } = calcularNivelStock(p.stock_actual, p.stock_minimo, p.stock_maximo || 0);
           return {
             id: p.id,
             codigo: p.codigo,
@@ -136,7 +135,7 @@ export default function HomePage() {
             unidadMedida: p.unidad_medida,
             stockActual: p.stock_actual,
             stockMinimo: p.stock_minimo,
-            stockMaximo: p.stock_maximo,
+            stockMaximo: p.stock_maximo || 0,
             nivelStock: nivel,
             porcentajeNivel: porcentaje,
             costoUnitario: p.costo_unitario || 0,

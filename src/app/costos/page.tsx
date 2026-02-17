@@ -4,11 +4,11 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Input, Badge } from '@/components/ui';
-import { Search, DollarSign, Calculator, AlertTriangle, Save, Loader2, ArrowRight } from 'lucide-react';
+import { Search, Calculator, AlertTriangle, Save, Loader2, ArrowRight } from 'lucide-react';
 import { getProductos, updateProducto } from '@/services/productos';
 import { getRecetas } from '@/services/recetas'; // Necesitamos saber si tienen receta
 import type { Producto } from '@/types/database';
-import { TipoProductoLabels, TipoProductoPrefixes } from '@/types/database';
+import { TipoProductoLabels } from '@/types/database';
 
 function formatearMoneda(valor: number): string {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(valor);

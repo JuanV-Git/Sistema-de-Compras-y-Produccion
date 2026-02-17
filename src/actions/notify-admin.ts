@@ -12,8 +12,8 @@ interface LeadData {
 
 export async function notifyAdminNewLead(data: LeadData) {
     const results = {
-        email: { success: false, error: null as any },
-        telegram: { success: false, error: null as any }
+        email: { success: false, error: null as unknown },
+        telegram: { success: false, error: null as unknown }
     };
 
     // 1. Intentar enviar Email (Resend)

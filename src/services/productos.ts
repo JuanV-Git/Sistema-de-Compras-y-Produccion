@@ -12,7 +12,6 @@ export type { Producto };
 export type CreateProductoData = Omit<Producto, 'id' | 'created_at' | 'updated_at'>;
 
 export interface ProductoConPrecio extends Producto {
-    moneda_costo?: string;
     costo_actual?: number;
 }
 
@@ -228,7 +227,7 @@ export async function getProductosConPrecios(): Promise<ProductoConPrecio[]> {
 
         return {
             ...p,
-            moneda_costo: moneda,
+            moneda_costo: moneda as 'ARS' | 'USD',
             costo_actual: costo
         };
     }));

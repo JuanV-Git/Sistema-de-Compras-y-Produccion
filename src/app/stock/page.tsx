@@ -8,26 +8,25 @@ import {
     Search,
     Package,
     AlertTriangle,
-    TrendingUp,
     TrendingDown,
     ArrowUpRight,
     ArrowDownRight,
-    DollarSign,
     History,
-    Filter,
     Warehouse,
 } from 'lucide-react';
 import { TipoProductoLabels, TipoMateriaPrimaLabels } from '@/types';
 import { formatearCosto } from '@/types/recetas';
 import {
-    ProductoStock,
-    MovimientoStock,
-    getResumenStock,
+    getMovimientosStock
+} from '@/services/stock';
+import {
     getNivelStockColor,
-    TipoMovimientoLabels,
-    OrigenMovimientoLabels,
     getTipoMovimientoColor,
     formatCantidadMovimiento,
+    type MovimientoStock,
+    type ProductoStock,
+    OrigenMovimientoLabels,
+    getResumenStock
 } from '@/types/stock';
 
 // =====================================================

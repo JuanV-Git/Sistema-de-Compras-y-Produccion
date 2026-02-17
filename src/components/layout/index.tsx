@@ -16,7 +16,6 @@ import {
     ChevronRight,
     Settings,
     LogOut,
-    Tag,
     Calculator // Added Calculator
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';

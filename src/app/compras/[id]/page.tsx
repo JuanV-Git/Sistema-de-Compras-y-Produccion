@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Badge, Select } from '@/components/ui';
@@ -14,7 +14,6 @@ import {
     deleteOrdenCompra,
     EstadoOCLabels,
     type OrdenCompraConRelaciones,
-    type OrdenCompraItemConProducto,
     type EstadoOC,
 } from '@/services/ordenesCompra';
 import { getProductos } from '@/services/productos';
@@ -42,11 +41,7 @@ export default function OrdenCompraDetallePage() {
     const [receptionQuantities, setReceptionQuantities] = useState<Record<string, string>>({});
     const [closePendientes, setClosePendientes] = useState<Record<string, boolean>>({});
 
-    useEffect(() => {
-        loadData();
-    }, [ordenId]);
-
-    async function loadData() {
+    const loadData = useCallback(async () => {
         setLoading(true);
         const [ordenData, productosData] = await Promise.all([
             getOrdenCompraById(ordenId),
@@ -55,11 +50,15 @@ export default function OrdenCompraDetallePage() {
         setOrden(ordenData);
         setProductos(productosData);
         setLoading(false);
-    }
+    }, [ordenId]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     // Moneda y tipo de cambio de la orden
-    const monedaOrden = (orden as any)?.moneda || 'ARS';
-    const tipoCambioOrden = (orden as any)?.tipo_cambio || 1;
+    const monedaOrden = (orden as unknown as { moneda: string })?.moneda || 'ARS';
+    const tipoCambioOrden = (orden as unknown as { tipo_cambio: number })?.tipo_cambio || 1;
 
     // Productos disponibles (no ya agregados)
     const productosDisponibles = productos.filter(
@@ -71,6 +70,7 @@ export default function OrdenCompraDetallePage() {
         const producto = productos.find(p => p.id === productoId);
         if (!producto) return 0;
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const monedaProducto = (producto as any).moneda_costo || 'ARS';
         const costo = producto.costo_unitario || 0;
 
@@ -213,7 +213,7 @@ export default function OrdenCompraDetallePage() {
     }
 
     const esEditable = orden.estado === 'BORRADOR';
-    const puedeRecibir = orden.estado === 'ENVIADA' || orden.estado === 'PARCIAL';
+    // const puedeRecibir = orden.estado === 'ENVIADA' || orden.estado === 'PARCIAL';
 
     return (
         <PageContainer
@@ -374,8 +374,11 @@ export default function OrdenCompraDetallePage() {
                             </div>
                         </div>
                         <div className="flex justify-end gap-2 mt-4">
-                            <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)}>Cancelar</Button>
-                            <Button size="sm" onClick={handleAddItem}>Agregar</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)} disabled={adding}>Cancelar</Button>
+                            <Button size="sm" onClick={handleAddItem} disabled={adding}>
+                                {adding ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                                Agregar
+                            </Button>
                         </div>
                     </div>
                 )}

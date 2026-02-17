@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, Package, DollarSign } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Trash2, Loader2, Package } from 'lucide-react';
 import { Card, Button, Badge, Select } from '@/components/ui';
-import { getProductos, getProductosConPrecios, type ProductoConPrecio } from '@/services/productos';
+import { getProductos, type ProductoConPrecio } from '@/services/productos';
 import { getTipoCambio } from '@/services/configuracion';
 import {
     getComponentesByReceta,
@@ -12,7 +12,6 @@ import {
     removeComponente,
     type RecetaComponenteConProducto,
 } from '@/services/recetas';
-import type { Producto } from '@/types/database';
 
 interface RecetaComponentesSectionProps {
     recetaId: string;
@@ -24,7 +23,7 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
     const [productos, setProductos] = useState<ProductoConPrecio[]>([]); // Usar tipo enriquecido
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
-    const [tipoCambio, setTipoCambioLocal] = useState<number>(1200);
+    const [tipoCambio, setTipoCambio] = useState<number>(1200);
 
     // Form para nuevo componente
     const [showForm, setShowForm] = useState(false);
@@ -36,43 +35,30 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
     const [editCantidad, setEditCantidad] = useState('');
 
     // Cargar datos
-    useEffect(() => {
-        loadData();
-    }, [recetaId]);
-
-    async function loadData() {
-        setLoading(true);
+    const loadData = useCallback(async () => {
+        // setLoading(true);
         const [componentesData, productosData, tc] = await Promise.all([
             getComponentesByReceta(recetaId),
-            getProductosConPrecios(), // Usar función enriquecida
-            getTipoCambio(),
+            getProductos(),
+            getTipoCambio()
         ]);
         setComponentes(componentesData);
-        setProductos(productosData);
-        setTipoCambioLocal(tc);
+        setProductos(productosData.filter(p => p.activo)); // Todo: filtrar solo MP/Insumos
+        setTipoCambio(tc);
+
+        // Calcular costo total
+        const total = componentesData.reduce((acc, c) => acc + (c.costo_subtotal || 0), 0);
+        onCostosActualizados?.(total);
         setLoading(false);
+    }, [recetaId, onCostosActualizados]);
 
-        // Notificar costos (ya en ARS)
-        const costoTotal = componentesData.reduce((acc, c) => acc + (c.costo_subtotal || 0), 0);
-        onCostosActualizados?.(costoTotal);
-    }
+    // Cargar datos
+    useEffect(() => {
+        // eslint-disable-next-line
+        loadData();
+    }, [loadData]);
 
-    // Función para obtener costo en ARS (convierte si es USD)
-    function getCostoEnARS(producto: ProductoConPrecio): number {
-        const costoBase = producto.costo_actual || producto.costo_unitario || 0;
-        const moneda = producto.moneda_costo || 'ARS';
-        return moneda === 'USD' ? costoBase * tipoCambio : costoBase;
-    }
 
-    // Función para formatear costo mostrando moneda original
-    function formatCostoProducto(producto: Producto): string {
-        const costo = producto.costo_unitario || 0;
-        const moneda = (producto as any).moneda_costo || 'ARS';
-        if (moneda === 'USD') {
-            return `USD ${costo.toFixed(2)} → $${(costo * tipoCambio).toLocaleString('es-AR')} ARS`;
-        }
-        return `$${costo.toFixed(2)} ARS`;
-    }
 
     // Productos disponibles para agregar (no ya agregados)
     const productosDisponibles = productos.filter(
@@ -131,7 +117,7 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
         await loadData();
     }
 
-    const costoTotal = componentes.reduce((acc, c) => acc + (c.costo_subtotal || 0), 0);
+
 
     return (
         <Card className="mt-6">
@@ -164,7 +150,6 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
                                     ...productosDisponibles.map((p) => {
                                         const moneda = p.moneda_costo || 'ARS';
                                         const costoBase = p.costo_actual || p.costo_unitario || 0;
-                                        const costoDisplay = moneda === 'USD' ? costoBase : (costoBase / (moneda === 'ARS' ? 1 : 1)); // Solo para display logico
 
                                         // Si es USD mostramos USD, si es ARS mostramos $
                                         const precioText = moneda === 'USD' ? `USD ${costoBase.toFixed(2)}` : `$${costoBase.toFixed(2)}`;

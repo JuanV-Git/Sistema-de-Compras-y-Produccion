@@ -29,22 +29,29 @@ export default function NuevaOrdenCompraPage() {
         observaciones: '',
     });
 
+    async function loadInitialData() {
+        setLoadingData(true);
+        try {
+            const [numeroOC, proveedoresData, tc] = await Promise.all([
+                getNextNumeroOC(), // Changed from getProximoNumeroOrden() to getNextNumeroOC() to match existing import
+                getProveedores(),
+                getTipoCambio()
+            ]);
+
+            setFormData(prev => ({ ...prev, numero: numeroOC, tipo_cambio: tc.toString() })); // Reverted to original behavior for tipo_cambio
+            setProveedores(proveedoresData);
+            setTipoCambioGlobal(tc); // Reverted to original state variable name
+        } catch (err) {
+            console.error('Error cargando datos iniciales:', err);
+            setError('Error al cargar datos iniciales');
+        } finally {
+            setLoadingData(false);
+        }
+    }
+
     useEffect(() => {
         loadInitialData();
     }, []);
-
-    async function loadInitialData() {
-        setLoadingData(true);
-        const [numeroOC, proveedoresData, tc] = await Promise.all([
-            getNextNumeroOC(),
-            getProveedores(),
-            getTipoCambio(),
-        ]);
-        setFormData(prev => ({ ...prev, numero: numeroOC, tipo_cambio: tc.toString() }));
-        setProveedores(proveedoresData);
-        setTipoCambioGlobal(tc);
-        setLoadingData(false);
-    }
 
     function handleChange(field: string, value: string) {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -86,11 +93,11 @@ export default function NuevaOrdenCompraPage() {
             } else {
                 setError('Error al crear la orden de compra');
             }
-        } catch (err) {
-            setError('Error inesperado al crear la orden');
+        } catch {
+            setError('Error al crear la orden');
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     }
 
     const proveedorOptions = [

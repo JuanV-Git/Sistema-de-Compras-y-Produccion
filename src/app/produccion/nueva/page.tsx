@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Select } from '@/components/ui';
-import { Save, ArrowLeft, Loader2, Factory, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, Factory, Info } from 'lucide-react';
 import { createOrdenProduccion, getNextNumeroOP, generarConsumosTeoricos } from '@/services/ordenesProduccion';
 import { getRecetas } from '@/services/recetas';
 import type { Receta } from '@/types/database';
@@ -25,10 +25,6 @@ export default function NuevaOrdenProduccionPage() {
         observaciones: '',
     });
 
-    useEffect(() => {
-        loadInitialData();
-    }, []);
-
     async function loadInitialData() {
         setLoadingData(true);
         const [numeroOP, recetasData] = await Promise.all([
@@ -39,6 +35,11 @@ export default function NuevaOrdenProduccionPage() {
         setRecetas(recetasData.filter(r => r.estado === 'ACTIVA'));
         setLoadingData(false);
     }
+
+    useEffect(() => {
+        // eslint-disable-next-line
+        loadInitialData();
+    }, []);
 
     function handleChange(field: string, value: string) {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -94,7 +95,8 @@ export default function NuevaOrdenProduccionPage() {
             } else {
                 setError('Error al crear la orden de producción');
             }
-        } catch (err) {
+        } catch (error) {
+            console.error('Error creating production order:', error);
             setError('Error inesperado al crear la orden');
         }
 
