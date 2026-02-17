@@ -75,6 +75,9 @@ export interface Producto {
     moneda_costo?: 'ARS' | 'USD';
     lista_costo_id?: string;
     costo_promedio: number;
+    // Volume fields (only for PT - Finished Products)
+    volumen_unitario?: number;
+    unidad_volumen?: string;
     activo: boolean;
     created_at: string;
     updated_at: string;

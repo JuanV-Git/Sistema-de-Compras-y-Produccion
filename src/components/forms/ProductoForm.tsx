@@ -56,6 +56,9 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
         moneda_costo: producto?.moneda_costo || 'ARS',
         stock_minimo: producto?.stock_minimo?.toString() || '0',
         stock_actual: producto?.stock_actual?.toString() || '0',
+        // Volume fields (only for PT products)
+        volumen_unitario: producto?.volumen_unitario?.toString() || '',
+        unidad_volumen: producto?.unidad_volumen || 'Lt',
     });
 
     // Cargar listas, tipo de cambio y recetas al montar
@@ -113,6 +116,9 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                 costo_promedio: parseFloat(formData.costo_unitario) || 0,
                 stock_minimo: parseFloat(formData.stock_minimo) || 0,
                 stock_actual: parseFloat(formData.stock_actual) || 0,
+                // Volume fields (only for PT products)
+                volumen_unitario: formData.tipo === 'PT' && formData.volumen_unitario ? parseFloat(formData.volumen_unitario) : undefined,
+                unidad_volumen: formData.tipo === 'PT' && formData.volumen_unitario ? formData.unidad_volumen : undefined,
                 activo: true,
             };
 
@@ -283,6 +289,47 @@ export function ProductoForm({ producto, mode }: ProductoFormProps) {
                                 onChange={(e) => handleChange('unidad_medida', e.target.value)}
                             />
                         </div>
+
+                        {/* Volume Section - Only for PT (Finished Products) */}
+                        {formData.tipo === 'PT' && (
+                            <div className="md:col-span-2 p-4 bg-[var(--bg-primary)]/30 rounded-lg border border-[var(--border-default)]">
+                                <label className="block text-sm font-medium text-[var(--accent-gold)] mb-3 flex items-center gap-2">
+                                    <span className="text-lg">📦</span> Volumen por Unidad
+                                </label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">Cantidad</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={formData.volumen_unitario}
+                                            onChange={(e) => handleChange('volumen_unitario', e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
+                                            placeholder="1.00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">Unidad</label>
+                                        <select
+                                            value={formData.unidad_volumen}
+                                            onChange={(e) => handleChange('unidad_volumen', e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
+                                        >
+                                            <option value="Lt">Litros (Lt)</option>
+                                            <option value="ml">Mililitros (ml)</option>
+                                            <option value="L">Litros (L)</option>
+                                            <option value="m³">Metros cúbicos (m³)</option>
+                                            <option value="gal">Galones (gal)</option>
+                                            <option value="cc">Centímetros cúbicos (cc)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-[var(--text-muted)] mt-2 italic">
+                                    Ejemplo: "1" + "Lt" para pintura de 1 litro
+                                </p>
+                            </div>
+                        )}
 
                         {/* Costo Unitario con Moneda */}
                         <div className="md:col-span-2 space-y-4 border p-4 rounded-lg bg-[var(--bg-primary)]/50">

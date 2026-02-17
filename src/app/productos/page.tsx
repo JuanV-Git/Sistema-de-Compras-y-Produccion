@@ -167,6 +167,7 @@ export default function ProductosPage() {
                                         <th className="text-left py-3 px-4 text-[var(--text-muted)] font-medium">Nombre</th>
                                         <th className="text-left py-3 px-4 text-[var(--text-muted)] font-medium">Tipo</th>
                                         <th className="text-left py-3 px-4 text-[var(--text-muted)] font-medium">Unidad</th>
+                                        <th className="text-right py-3 px-4 text-[var(--text-muted)] font-medium">Volumen Total</th>
                                         <th className="text-right py-3 px-4 text-[var(--text-muted)] font-medium">Stock</th>
                                         <th className="text-right py-3 px-4 text-[var(--text-muted)] font-medium">Costo</th>
                                         <th className="text-center py-3 px-4 text-[var(--text-muted)] font-medium">Acciones</th>
@@ -199,6 +200,15 @@ export default function ProductosPage() {
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 text-[var(--text-secondary)]">{producto.unidad_medida}</td>
+                                            <td className="py-3 px-4 text-right">
+                                                {producto.tipo === 'PT' && producto.volumen_unitario ? (
+                                                    <span className="text-[var(--accent-gold)] font-medium">
+                                                        📦 {(producto.stock_actual * producto.volumen_unitario).toFixed(2)} {producto.unidad_volumen}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[var(--text-muted)] text-xs">-</span>
+                                                )}
+                                            </td>
                                             <td className="py-3 px-4 text-right text-[var(--text-primary)]">
                                                 {producto.stock_actual?.toLocaleString() || 0}
                                             </td>
