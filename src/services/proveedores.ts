@@ -1,28 +1,15 @@
 // =====================================================
-// SERVICIO DE API REST - PROVEEDORES
+// SERVICIO DE API - PROVEEDORES
 // =====================================================
-// Usando fetch directo a la API REST de Supabase
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-function getHeaders() {
-    return {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-    };
-}
+import { createClient } from '@/lib/supabase/client';
 
 export interface Proveedor {
     id: string;
-    // tenant_id removido
     codigo: string;
     nombre: string;
     razon_social?: string;
     cuit?: string;
-    email?: string;
-    telefono?: string;
     direccion?: string;
     contacto_nombre?: string;
     contacto_email?: string;
@@ -40,20 +27,20 @@ export type CreateProveedorData = Omit<Proveedor, 'id' | 'created_at' | 'updated
  * Obtiene todos los proveedores activos
  */
 export async function getProveedores(): Promise<Proveedor[]> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/proveedores?activo=eq.true&order=nombre`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching proveedores:', await response.text());
+    const { data, error } = await supabase
+        .from('proveedores')
+        .select('*')
+        .eq('activo', true)
+        .order('nombre');
+
+    if (error) {
+        console.error('Error fetching proveedores:', error);
         return [];
     }
 
-    return response.json();
+    return data || [];
 }
 
 /**
@@ -61,24 +48,23 @@ export async function getProveedores(): Promise<Proveedor[]> {
  * Formato: PROV-001, PROV-002, etc.
  */
 export async function getNextCodigoProveedor(): Promise<string> {
-    // Obtener todos los proveedores (incluso inactivos) para no reusar códigos
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/proveedores?select=codigo&order=codigo.desc&limit=100`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
+    // Obtener todos los proveedores (incluso inactivos) para no reusar códigos
+    const { data: proveedores, error } = await supabase
+        .from('proveedores')
+        .select('codigo')
+        .order('codigo', { ascending: false })
+        .limit(100);
+
+    if (error) {
+        console.error('Error fetching next codigo:', error);
         return 'PROV-001';
     }
 
-    const proveedores = await response.json();
-
     // Buscar el número más alto
     let maxNum = 0;
-    for (const p of proveedores) {
+    for (const p of proveedores || []) {
         const match = p.codigo?.match(/PROV-(\d+)/);
         if (match) {
             const num = parseInt(match[1], 10);
@@ -95,105 +81,104 @@ export async function getNextCodigoProveedor(): Promise<string> {
  * Obtiene un proveedor por ID
  */
 export async function getProveedorById(id: string): Promise<Proveedor | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/proveedores?id=eq.${id}`,
-        {
-            method: 'GET',
-            headers: getHeaders(),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error fetching proveedor:', await response.text());
+    const { data, error } = await supabase
+        .from('proveedores')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching proveedor:', error);
         return null;
     }
 
-    const data = await response.json();
-    return data[0] || null;
+    return data;
 }
 
 /**
  * Crea un nuevo proveedor
  */
-export async function createProveedor(proveedor: CreateProveedorData): Promise<Proveedor | null> {
-    const insertData = {
-        ...proveedor,
-        // tenant_id removido
-    };
+export async function createProveedor(data: CreateProveedorData): Promise<Proveedor | null> {
+    const supabase = createClient();
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/proveedores`,
-        {
-            method: 'POST',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify(insertData),
-        }
-    );
+    const { data: proveedor, error } = await supabase
+        .from('proveedores')
+        .insert([data])
+        .select()
+        .single();
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error creating proveedor:', errorText);
-        throw new Error(`Error al crear proveedor: ${errorText}`);
+    if (error) {
+        console.error('Error creating proveedor:', error);
+        throw new Error(`Error al crear proveedor: ${JSON.stringify(error)}`);
     }
 
-    const data = await response.json();
-    return data[0] || data;
+    return proveedor;
 }
 
 /**
  * Actualiza un proveedor existente
  */
-export async function updateProveedor(
-    id: string,
-    proveedor: Partial<CreateProveedorData>
-): Promise<Proveedor | null> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/proveedores?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify({
-                ...proveedor,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+export async function updateProveedor(id: string, data: Partial<CreateProveedorData>): Promise<Proveedor | null> {
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error updating proveedor:', await response.text());
-        return null;
+    const { data: proveedor, error } = await supabase
+        .from('proveedores')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating proveedor:', error);
+        throw new Error(`Error al actualizar proveedor: ${JSON.stringify(error)}`);
     }
 
-    const data = await response.json();
-    return data[0] || null;
+    return proveedor;
 }
 
 /**
- * Elimina un proveedor (soft delete)
+ * Elimina (soft delete) un proveedor
  */
 export async function deleteProveedor(id: string): Promise<boolean> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/proveedores?id=eq.${id}`,
-        {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify({
-                activo: false,
-                updated_at: new Date().toISOString(),
-            }),
-        }
-    );
+    const supabase = createClient();
 
-    if (!response.ok) {
-        console.error('Error deleting proveedor:', await response.text());
-        return false;
+    // Attempt hard delete  
+    const { error } = await supabase
+        .from('proveedores')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error deleting proveedor:', error);
+        throw new Error(`No se pudo eliminar: El proveedor está siendo utilizado en otros registros.`);
     }
 
     return true;
+}
+
+/**
+ * Obtiene proveedores con filtros
+ */
+export async function getProveedoresConFiltros(activo?: boolean): Promise<Proveedor[]> {
+    const supabase = createClient();
+
+    let query = supabase
+        .from('proveedores')
+        .select('*')
+        .order('nombre');
+
+    if (activo !== undefined) {
+        query = query.eq('activo', activo);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error('Error fetching proveedores con filtros:', error);
+        return [];
+    }
+
+    return data || [];
 }
