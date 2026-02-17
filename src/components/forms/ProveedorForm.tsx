@@ -25,8 +25,6 @@ export function ProveedorForm({ proveedor, mode }: ProveedorFormProps) {
         nombre: proveedor?.nombre || '',
         razon_social: proveedor?.razon_social || '',
         cuit: proveedor?.cuit || '',
-        email: (proveedor?.details as any)?.email || '',
-        telefono: (proveedor?.details as any)?.telefono || '',
         direccion: proveedor?.direccion || '',
         contacto_nombre: proveedor?.contacto_nombre || '',
         contacto_email: proveedor?.contacto_email || '',
@@ -61,15 +59,12 @@ export function ProveedorForm({ proveedor, mode }: ProveedorFormProps) {
                 nombre: formData.nombre,
                 razon_social: formData.razon_social || undefined,
                 cuit: formData.cuit || undefined,
+                direccion: formData.direccion || undefined,
                 contacto_nombre: formData.contacto_nombre || undefined,
                 contacto_email: formData.contacto_email || undefined,
                 contacto_telefono: formData.contacto_telefono || undefined,
                 condicion_pago: formData.condicion_pago || undefined,
                 plazo_entrega_dias: parseInt(formData.plazo_entrega_dias) || 15,
-                details: {
-                    email: formData.email,
-                    telefono: formData.telefono
-                },
                 activo: true,
             };
 
@@ -183,8 +178,8 @@ export function ProveedorForm({ proveedor, mode }: ProveedorFormProps) {
                             </label>
                             <input
                                 type="email"
-                                value={formData.email}
-                                onChange={(e) => handleChange('email', e.target.value)}
+                                value={formData.contacto_email}
+                                onChange={(e) => handleChange('contacto_email', e.target.value)}
                                 placeholder="contacto@empresa.com"
                                 className="w-full px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-gold)]"
                             />
@@ -197,8 +192,8 @@ export function ProveedorForm({ proveedor, mode }: ProveedorFormProps) {
                             </label>
                             <input
                                 type="text"
-                                value={formData.telefono}
-                                onChange={(e) => handleChange('telefono', e.target.value)}
+                                value={formData.contacto_telefono}
+                                onChange={(e) => handleChange('contacto_telefono', e.target.value)}
                                 placeholder="+54 11 1234-5678"
                                 className="w-full px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-gold)]"
                             />
