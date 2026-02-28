@@ -5,7 +5,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import type { OrdenCompra, OrdenCompraItem, Proveedor, Producto } from '@/types/database';
-import { registrarRecepcionCompra } from './stock'; // Importamos dinamicamente si es necesario para evitar ciclos
+import { registrarRecepcionCompra, getStockProducto } from './stock';
 
 export type { OrdenCompra, OrdenCompraItem };
 
@@ -357,6 +357,9 @@ export async function registrarItemsRecibidos(
         // 2. Registrar movimiento de stock (si hubo cantidad recibida)
         if (recibido.cantidad > 0 && itemActual.producto_id) {
             try {
+                // Obtener stock anterior ANTES de registrar la recepción
+                const stockAnterior = await getStockProducto(itemActual.producto_id);
+
                 await registrarRecepcionCompra(
                     itemActual.producto_id,
                     recibido.cantidad,
@@ -364,7 +367,32 @@ export async function registrarItemsRecibidos(
                     orden.id,
                     itemActual.precio_unitario
                 );
-                // algunRecibido flag removed as it was unused
+
+                // 2b. Actualizar costo promedio ponderado del producto
+                // Fórmula: (stock_anterior × costo_actual + cantidad × precio_compra) / stock_nuevo
+                const supabase = createClient();
+                const { data: productoActual } = await supabase
+                    .from('productos')
+                    .select('costo_unitario')
+                    .eq('id', itemActual.producto_id)
+                    .single();
+
+                if (productoActual) {
+                    const costoActual = productoActual.costo_unitario || 0;
+                    const stockNuevo = stockAnterior + recibido.cantidad;
+                    const nuevoCostoPromedio = stockNuevo > 0
+                        ? ((stockAnterior * costoActual) + (recibido.cantidad * itemActual.precio_unitario)) / stockNuevo
+                        : itemActual.precio_unitario;
+
+                    await supabase
+                        .from('productos')
+                        .update({
+                            costo_unitario: Math.round(nuevoCostoPromedio * 10000) / 10000, // 4 decimales
+                            costo_promedio: Math.round(nuevoCostoPromedio * 10000) / 10000,
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq('id', itemActual.producto_id);
+                }
             } catch (error) {
                 console.error(`Error registrando stock para item ${itemActual.id}:`, error);
             }
