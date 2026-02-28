@@ -7,7 +7,7 @@ import { Card, Button, Badge } from '@/components/ui';
 import {
     ArrowLeft, Trash2, Loader2, Package, Factory, Calendar,
     Play, Check, X, TrendingUp, TrendingDown, AlertCircle,
-    CheckCircle2, FlaskConical,
+    CheckCircle2, FlaskConical, Printer,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -245,6 +245,11 @@ export default function OrdenProduccionDetallePage() {
                 description={`Producto: ${orden.producto?.nombre || 'Sin asignar'}`}
                 actions={
                     <div className="flex gap-2">
+                        <Link href={`/produccion/${ordenId}/print`} target="_blank">
+                            <Button variant="ghost" size="sm">
+                                <Printer className="w-4 h-4" /> PDF
+                            </Button>
+                        </Link>
                         {esEditable && (
                             <>
                                 <Button variant="ghost" onClick={handleEliminar}>

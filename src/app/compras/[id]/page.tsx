@@ -6,7 +6,7 @@ import { PageContainer } from '@/components/layout';
 import { Card, Button, Badge, Select } from '@/components/ui';
 import {
     ArrowLeft, Plus, Trash2, Loader2, Package, Building2,
-    Calendar, Send, Check, X, DollarSign, CheckCircle2, TruckIcon,
+    Calendar, Send, Check, X, DollarSign, CheckCircle2, TruckIcon, Printer,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -270,6 +270,13 @@ export default function OrdenCompraDetallePage() {
                 description={`Proveedor: ${orden.proveedor?.nombre || 'Sin asignar'}`}
                 actions={
                     <div className="flex gap-2">
+                        {!isReceiving && (
+                            <Link href={`/compras/${ordenId}/print`} target="_blank">
+                                <Button variant="ghost" size="sm">
+                                    <Printer className="w-4 h-4" /> PDF
+                                </Button>
+                            </Link>
+                        )}
                         {isReceiving ? (
                             <>
                                 <Button variant="ghost" onClick={cancelarRecepcion} disabled={confirming}>
