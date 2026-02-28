@@ -16,7 +16,9 @@ import {
     ChevronRight,
     Settings,
     LogOut,
-    Calculator // Added Calculator
+    Calculator,
+    BarChart3,
+    ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
@@ -56,6 +58,8 @@ const navigation: NavGroup[] = [
     {
         title: 'Compras',
         items: [
+            { label: 'Panel de Compras', href: '/compras/panel', icon: BarChart3 },
+            { label: 'Lista de Compra', href: '/compras/lista', icon: ClipboardList },
             { label: 'Órdenes de Compra', href: '/compras', icon: ShoppingCart },
             { label: 'Proveedores', href: '/proveedores', icon: Users },
         ],
