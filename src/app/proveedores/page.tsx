@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Badge } from '@/components/ui';
-import { Plus, Search, Building2, Phone, Mail, MapPin, Edit, Eye, Loader2 } from 'lucide-react';
-import { getProveedores } from '@/services/proveedores';
+import { Plus, Search, Building2, Phone, Mail, MapPin, Edit, Eye, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { getProveedores, deleteProveedor } from '@/services/proveedores';
 import type { Proveedor } from '@/types/database';
 
 export default function ProveedoresPage() {
@@ -15,14 +15,27 @@ export default function ProveedoresPage() {
 
     // Cargar datos de Supabase
     useEffect(() => {
-        async function loadProveedores() {
-            setLoading(true);
-            const data = await getProveedores();
-            setProveedores(data);
-            setLoading(false);
-        }
         loadProveedores();
     }, []);
+
+    const loadProveedores = async () => {
+        setLoading(true);
+        const data = await getProveedores();
+        setProveedores(data);
+        setLoading(false);
+    };
+
+    const handleDelete = async (id: string, nombre: string) => {
+        if (window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el proveedor "${nombre}"? Esta acción no se puede deshacer.`)) {
+            try {
+                await deleteProveedor(id);
+                // Recargar lista después de borrar
+                loadProveedores();
+            } catch (error: any) {
+                alert(error.message || 'Ocurrió un error al eliminar el proveedor.');
+            }
+        }
+    };
 
     // Filtrar proveedores
     const filteredProveedores = useMemo(() => {
@@ -145,6 +158,9 @@ export default function ProveedoresPage() {
                                             <Eye className="w-4 h-4" /> Ver
                                         </Button>
                                     </Link>
+                                    <Button variant="danger" size="sm" onClick={() => handleDelete(proveedor.id, proveedor.nombre)}>
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
                                 </div>
                             </Card>
                         ))}
