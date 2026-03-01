@@ -3,61 +3,52 @@
 // =====================================================
 
 import { createClient } from '@/lib/supabase/client';
-import type { Configuracion } from '@/types/database';
 
 // Tipo de cambio por defecto
 const DEFAULT_TIPO_CAMBIO = 1200;
+const TIPO_CAMBIO_KEY = 'TIPO_CAMBIO_USD';
 
 /**
- * Obtiene la configuración global (única fila)
- */
-export async function getConfiguracion(): Promise<Configuracion | null> {
-    const supabase = createClient();
-
-    // Asumimos que la tabla se llama 'configuracion' en Supabase según schema.sql
-    const { data, error } = await supabase
-        .from('configuracion')
-        .select('*')
-        .limit(1)
-        .single();
-
-    if (error) {
-        // Podría no haber fila, así que retornamos null
-        return null;
-    }
-
-    return data as Configuracion;
-}
-
-/**
- * Obtiene el tipo de cambio USD -> ARS desde params
+ * Obtiene el tipo de cambio USD -> ARS desde la base de datos
  */
 export async function getTipoCambio(): Promise<number> {
-    const config = await getConfiguracion();
-    if (config && config.params && (config.params as any).tipo_cambio_usd) {
-        return Number((config.params as any).tipo_cambio_usd);
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+        .from('configuraciones')
+        .select('valor')
+        .eq('clave', TIPO_CAMBIO_KEY)
+        .single();
+
+    if (error || !data) {
+        return DEFAULT_TIPO_CAMBIO;
     }
-    return DEFAULT_TIPO_CAMBIO;
+
+    const valorNum = Number(data.valor);
+    return isNaN(valorNum) ? DEFAULT_TIPO_CAMBIO : valorNum;
 }
 
 /**
- * Actualiza el tipo de cambio USD -> ARS en params
+ * Actualiza el tipo de cambio USD -> ARS en la base de datos
  */
 export async function setTipoCambio(valor: number): Promise<boolean> {
     const supabase = createClient();
-    const config = await getConfiguracion();
 
-    const newParams = {
-        ...(config?.params || {}),
-        tipo_cambio_usd: valor
-    };
+    // Primero intentamos ver si existe
+    const { data: existingMap } = await supabase
+        .from('configuraciones')
+        .select('id')
+        .eq('clave', TIPO_CAMBIO_KEY)
+        .single();
 
-    if (!config) {
+    if (!existingMap) {
         // Necesitamos crear la primera fila
         const { error } = await supabase
-            .from('configuracion')
+            .from('configuraciones')
             .insert([{
-                params: newParams,
+                clave: TIPO_CAMBIO_KEY,
+                valor: valor.toString(),
+                descripcion: 'Tipo de cambio USD a ARS'
             }]);
 
         if (error) {
@@ -67,12 +58,12 @@ export async function setTipoCambio(valor: number): Promise<boolean> {
     } else {
         // Actualizar fila existente
         const { error } = await supabase
-            .from('configuracion')
+            .from('configuraciones')
             .update({
-                params: newParams,
+                valor: valor.toString(),
                 updated_at: new Date().toISOString()
             })
-            .eq('id', config.id);
+            .eq('clave', TIPO_CAMBIO_KEY);
 
         if (error) {
             console.error('Error actualizando configuración:', error);
