@@ -56,6 +56,12 @@ export default function ListaCompraPage() {
             .eq('es_principal', true)
             .in('producto_id', productoIds);
 
+        // Obtener costos unitarios por defecto
+        const { data: prodsData } = await supabase
+            .from('productos')
+            .select('id, costo_unitario')
+            .in('id', productoIds);
+
         // Obtener lista de proveedores para dropdown
         const { data: provs } = await supabase
             .from('proveedores')
@@ -69,11 +75,13 @@ export default function ListaCompraPage() {
         const enriched = raw.map(item => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const link = (links || []).find((l: any) => l.producto_id === item.productoId) as any;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const fallback = (prodsData || []).find((p: any) => p.id === item.productoId) as any;
             return {
                 ...item,
                 proveedorId: link?.proveedor?.id || '',
                 proveedorNombre: link?.proveedor?.nombre || '',
-                ultimoPrecio: link?.precio_unitario || 0,
+                ultimoPrecio: item.ultimoPrecio !== undefined && item.ultimoPrecio !== 0 ? item.ultimoPrecio : (link?.precio_unitario || fallback?.costo_unitario || 0),
             };
         });
 
@@ -87,6 +95,16 @@ export default function ListaCompraPage() {
         setItems(prev => {
             const next = prev.map(i =>
                 i.productoId === productoId ? { ...i, cantidad } : i
+            );
+            localStorage.setItem('listaCompra', JSON.stringify(next));
+            return next;
+        });
+    }
+
+    function handleUpdatePrecio(productoId: string, precio: number) {
+        setItems(prev => {
+            const next = prev.map(i =>
+                i.productoId === productoId ? { ...i, ultimoPrecio: precio } : i
             );
             localStorage.setItem('listaCompra', JSON.stringify(next));
             return next;
@@ -296,8 +314,18 @@ export default function ListaCompraPage() {
                                             ))}
                                         </select>
                                     </td>
-                                    <td className="py-1.5 px-2 text-right text-[var(--text-secondary)]">
-                                        {item.ultimoPrecio ? `$ ${item.ultimoPrecio.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '—'}
+                                    <td className="py-1.5 px-2 text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span className="text-[var(--text-muted)] text-xs">$</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={item.ultimoPrecio || ''}
+                                                onChange={e => handleUpdatePrecio(item.productoId, parseFloat(e.target.value) || 0)}
+                                                className="w-24 px-1 py-0.5 text-right text-xs rounded bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
+                                            />
+                                        </div>
                                     </td>
                                     <td className="py-1.5 px-2 text-right">
                                         <input

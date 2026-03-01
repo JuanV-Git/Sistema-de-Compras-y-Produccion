@@ -12,6 +12,7 @@ import Link from 'next/link';
 import {
     getOrdenCompraById,
     addItemToOrden,
+    updateItem,
     removeItem,
     cambiarEstadoOrden,
     deleteOrdenCompra,
@@ -145,6 +146,20 @@ export default function OrdenCompraDetallePage() {
     async function handleRemoveItem(itemId: string) {
         if (!confirm('¿Eliminar este item?')) return;
         await removeItem(itemId, ordenId);
+        await loadData();
+    }
+
+    async function handleUpdateItemPrecio(itemId: string, newPriceStr: string) {
+        if (!orden) return;
+        const parsed = parseFloat(newPriceStr);
+        if (isNaN(parsed) || parsed < 0) return;
+        const item = orden.items?.find(i => i.id === itemId);
+        if (!item || parsed === item.precio_unitario) return;
+
+        await updateItem(itemId, {
+            precio_unitario: parsed,
+            subtotal: parsed * item.cantidad_pedida
+        }, ordenId);
         await loadData();
     }
 
@@ -576,8 +591,24 @@ export default function OrdenCompraDetallePage() {
                                                 {/* Precio y subtotal */}
                                                 {!isReceiving && (
                                                     <>
-                                                        <td className="py-3 px-3 text-right text-[var(--text-secondary)]">
-                                                            {formatCurrency(item.precio_unitario)}
+                                                        <td className="py-3 px-3 text-right">
+                                                            {esEditable ? (
+                                                                <div className="flex items-center justify-end gap-1">
+                                                                    <span className="text-[var(--text-muted)] text-sm">$</span>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="any"
+                                                                        defaultValue={item.precio_unitario}
+                                                                        onBlur={(e) => handleUpdateItemPrecio(item.id, e.target.value)}
+                                                                        className="w-24 text-right px-2 py-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] text-[var(--text-primary)] focus:border-[var(--accent-gold)] focus:outline-none transition-colors"
+                                                                    />
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-[var(--text-secondary)]">
+                                                                    {formatCurrency(item.precio_unitario)}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td className="py-3 px-3 text-right font-medium gold-text">
                                                             {formatCurrency(item.subtotal || 0)}
