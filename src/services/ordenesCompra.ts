@@ -327,7 +327,8 @@ export async function cambiarEstadoOrden(id: string, estado: EstadoOC): Promise<
  */
 export async function registrarItemsRecibidos(
     ordenId: string,
-    itemsRecibidos: { id: string; cantidad: number; cerrar_pendiente: boolean }[]
+    itemsRecibidos: { id: string; cantidad: number; cerrar_pendiente: boolean }[],
+    fechaRecepcion?: string
 ): Promise<boolean> {
     // Importación dinámica para evitar ciclos si fuera necesario, aunque ya importamos arriba
     // const { registrarRecepcionCompra } = await import('./stock');
@@ -365,7 +366,8 @@ export async function registrarItemsRecibidos(
                     recibido.cantidad,
                     orden.numero,
                     orden.id,
-                    itemActual.precio_unitario
+                    itemActual.precio_unitario,
+                    fechaRecepcion
                 );
 
                 // 2b. Actualizar costo promedio ponderado del producto

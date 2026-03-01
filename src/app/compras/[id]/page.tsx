@@ -88,6 +88,7 @@ export default function OrdenCompraDetallePage() {
     const [confirming, setConfirming] = useState(false);
     const [receptionQuantities, setReceptionQuantities] = useState<Record<string, string>>({});
     const [closePendientes, setClosePendientes] = useState<Record<string, boolean>>({});
+    const [fechaRecepcion, setFechaRecepcion] = useState(new Date().toISOString().split('T')[0]);
 
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -203,7 +204,7 @@ export default function OrdenCompraDetallePage() {
                 cerrar_pendiente: closePendientes[item.id] || false,
             }));
 
-            await registrarItemsRecibidos(ordenId, itemsAProcesar);
+            await registrarItemsRecibidos(ordenId, itemsAProcesar, fechaRecepcion);
 
             const totalRecibido = itemsAProcesar.reduce((acc, i) => acc + i.cantidad, 0);
             setToastMsg(`✅ Recepción confirmada: ${itemsAProcesar.length} item(s) · ${totalRecibido.toLocaleString('es-AR')} unidades registradas en stock`);
@@ -657,28 +658,43 @@ export default function OrdenCompraDetallePage() {
                     {/* Panel resumen de recepción */}
                     {isReceiving && itemsConCantidad.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-yellow-500/20">
-                            <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wider mb-2">
-                                Resumen de esta recepción
-                            </p>
-                            <div className="space-y-1">
-                                {itemsConCantidad.map(item => {
-                                    const cant = parseFloat(receptionQuantities[item.id] || '0');
-                                    const cierra = closePendientes[item.id];
-                                    return (
-                                        <div key={item.id} className="flex justify-between text-sm text-[var(--text-secondary)]">
-                                            <span>{item.producto?.nombre}</span>
-                                            <span className="font-medium text-yellow-300">
-                                                {cant > 0 ? `+${cant} ${item.producto?.unidad_medida}` : ''}
-                                                {cierra && cant === 0 ? ' cierre sin recepción' : ''}
-                                                {cierra && cant > 0 ? ' (cerrar)' : ''}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wider mb-2">
+                                        Resumen de esta recepción
+                                    </p>
+                                    <div className="space-y-1">
+                                        {itemsConCantidad.map(item => {
+                                            const cant = parseFloat(receptionQuantities[item.id] || '0');
+                                            const cierra = closePendientes[item.id];
+                                            return (
+                                                <div key={item.id} className="flex justify-between text-sm text-[var(--text-secondary)]">
+                                                    <span>{item.producto?.nombre}</span>
+                                                    <span className="font-medium text-yellow-300 ml-4">
+                                                        {cant > 0 ? `+${cant} ${item.producto?.unidad_medida}` : ''}
+                                                        {cierra && cant === 0 ? ' cierre sin recepción' : ''}
+                                                        {cierra && cant > 0 ? ' (cerrar)' : ''}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-xs text-yellow-400/60 mt-2">
+                                        💡 El costo promedio ponderado de cada producto se actualizará al confirmar.
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <label className="block text-xs font-medium text-yellow-400/80 mb-1">
+                                        Fecha de Recepción
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={fechaRecepcion}
+                                        onChange={(e) => setFechaRecepcion(e.target.value)}
+                                        className="w-40 px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-yellow-500"
+                                    />
+                                </div>
                             </div>
-                            <p className="text-xs text-yellow-400/60 mt-2">
-                                💡 El costo promedio ponderado de cada producto se actualizará al confirmar.
-                            </p>
                         </div>
                     )}
                 </Card>

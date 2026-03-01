@@ -30,16 +30,17 @@ export const OrigenLabels: Record<OrigenMovimiento, string> = {
 };
 
 // Datos para crear movimiento
-export interface CreateMovimientoData {
+export type CreateMovimientoData = {
     producto_id: string;
-    tipo_movimiento: TipoMovimiento;
+    tipo_movimiento: 'ENTRADA' | 'SALIDA' | 'AJUSTE';
     origen: OrigenMovimiento;
     documento_id?: string;
     documento_numero?: string;
     cantidad: number;
     costo_unitario?: number;
     observaciones?: string;
-}
+    fecha?: string;
+};
 
 // Movimiento con producto
 export interface MovimientoConProducto {
@@ -120,7 +121,7 @@ export async function crearMovimientoStock(data: CreateMovimientoData): Promise<
     }
 
     // 4. Insertar movimiento
-    const movimientoData = {
+    const movimientoData: any = {
         producto_id: data.producto_id,
         tipo_movimiento: data.tipo_movimiento,
         origen: data.origen,
@@ -133,6 +134,10 @@ export async function crearMovimientoStock(data: CreateMovimientoData): Promise<
         costo_total: data.costo_unitario ? data.cantidad * data.costo_unitario : null,
         observaciones: data.observaciones,
     };
+
+    if (data.fecha) {
+        movimientoData.created_at = data.fecha;
+    }
 
     const { data: result, error } = await supabase
         .from('movimientos_stock')
@@ -244,7 +249,8 @@ export async function registrarRecepcionCompra(
     cantidad: number,
     ocNumero: string,
     ocId: string,
-    costoUnitario?: number
+    costoUnitario?: number,
+    fecha?: string
 ): Promise<MovimientoConProducto | null> {
     return crearMovimientoStock({
         producto_id: productoId,
@@ -255,6 +261,7 @@ export async function registrarRecepcionCompra(
         cantidad,
         costo_unitario: costoUnitario,
         observaciones: `Recepción OC ${ocNumero}`,
+        fecha,
     });
 }
 
