@@ -2,16 +2,7 @@
 // SERVICIO DE MOVIMIENTOS DE STOCK
 // =====================================================
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-function getHeaders() {
-    return {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-    };
-}
+import { createClient } from '@/lib/supabase/client';
 
 // Tipos de movimiento
 export type TipoMovimiento = 'ENTRADA' | 'SALIDA';
@@ -82,40 +73,38 @@ export interface MovimientoConProducto {
  * Obtiene el stock actual de un producto
  */
 export async function getStockProducto(productoId: string): Promise<number> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?id=eq.${productoId}&select=stock_actual`,
-        { headers: getHeaders() }
-    );
+    const supabase = createClient();
+    const { data, error } = await supabase
+        .from('productos')
+        .select('stock_actual')
+        .eq('id', productoId)
+        .single();
 
-    if (!response.ok) return 0;
-
-    const data = await response.json();
-    return data[0]?.stock_actual || 0;
+    if (error || !data) return 0;
+    return data.stock_actual || 0;
 }
 
 /**
  * Actualiza el stock de un producto directamente
  */
 async function actualizarStockProducto(productoId: string, nuevoStock: number): Promise<boolean> {
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/productos?id=eq.${productoId}`,
-        {
-            method: 'PATCH',
-            headers: getHeaders(),
-            body: JSON.stringify({
-                stock_actual: nuevoStock,
-                updated_at: new Date().toISOString()
-            }),
-        }
-    );
+    const supabase = createClient();
+    const { error } = await supabase
+        .from('productos')
+        .update({
+            stock_actual: nuevoStock,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', productoId);
 
-    return response.ok;
+    return !error;
 }
 
 /**
  * Crea un movimiento de stock y actualiza el stock del producto
  */
 export async function crearMovimientoStock(data: CreateMovimientoData): Promise<MovimientoConProducto | null> {
+    const supabase = createClient();
     // 1. Obtener stock actual
     const stockAnterior = await getStockProducto(data.producto_id);
 
@@ -132,7 +121,6 @@ export async function crearMovimientoStock(data: CreateMovimientoData): Promise<
 
     // 4. Insertar movimiento
     const movimientoData = {
-        // tenant_id removido
         producto_id: data.producto_id,
         tipo_movimiento: data.tipo_movimiento,
         origen: data.origen,
@@ -146,22 +134,15 @@ export async function crearMovimientoStock(data: CreateMovimientoData): Promise<
         observaciones: data.observaciones,
     };
 
-    const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/movimientos_stock`,
-        {
-            method: 'POST',
-            headers: {
-                ...getHeaders(),
-                'Prefer': 'return=representation',
-            },
-            body: JSON.stringify(movimientoData),
-        }
-    );
+    const { data: result, error } = await supabase
+        .from('movimientos_stock')
+        .insert(movimientoData)
+        .select()
+        .single();
 
-    if (!response.ok) {
-        const error = await response.text();
+    if (error) {
         console.error('Error creando movimiento:', error);
-        throw new Error(`Error al crear movimiento: ${error}`);
+        throw new Error(`Error al crear movimiento: ${error.message}`);
     }
 
     // 5. Actualizar stock del producto
@@ -170,8 +151,7 @@ export async function crearMovimientoStock(data: CreateMovimientoData): Promise<
         console.error('Error actualizando stock del producto');
     }
 
-    const result = await response.json();
-    return result[0] || result;
+    return result as unknown as MovimientoConProducto;
 }
 
 /**
@@ -182,26 +162,30 @@ export async function getMovimientosStock(params?: {
     origen?: OrigenMovimiento;
     limit?: number;
 }): Promise<MovimientoConProducto[]> {
-    let url = `${SUPABASE_URL}/rest/v1/movimientos_stock?select=*,producto:productos(id,codigo,nombre,unidad_medida)&order=created_at.desc`;
+    const supabase = createClient();
+    let query = supabase
+        .from('movimientos_stock')
+        .select('*,producto:productos(id,codigo,nombre,unidad_medida)')
+        .order('created_at', { ascending: false });
 
     if (params?.productoId) {
-        url += `&producto_id=eq.${params.productoId}`;
+        query = query.eq('producto_id', params.productoId);
     }
     if (params?.origen) {
-        url += `&origen=eq.${params.origen}`;
+        query = query.eq('origen', params.origen);
     }
     if (params?.limit) {
-        url += `&limit=${params.limit}`;
+        query = query.limit(params.limit);
     }
 
-    const response = await fetch(url, { headers: getHeaders() });
+    const { data, error } = await query;
 
-    if (!response.ok) {
-        console.error('Error fetching movimientos:', await response.text());
+    if (error) {
+        console.error('Error fetching movimientos:', error);
         return [];
     }
 
-    return response.json();
+    return (data || []) as unknown as MovimientoConProducto[];
 }
 
 // =====================================================
