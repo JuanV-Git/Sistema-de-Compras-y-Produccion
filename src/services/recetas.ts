@@ -204,19 +204,20 @@ export async function linkRecetaToProducto(recetaId: string, productoId: string)
  * Actualiza los costos de una receta
  */
 export async function updateRecetaCostos(recetaId: string): Promise<void> {
-    // Obtener componentes para calcular costos
-    const componentes = await getComponentesByReceta(recetaId);
-    const receta = await getRecetaById(recetaId);
+    // Optimización: Fetch concurrente de componentes, receta y tipo de cambio
+    const [componentes, receta, tc] = await Promise.all([
+        getComponentesByReceta(recetaId),
+        getRecetaById(recetaId),
+        getTipoCambio()
+    ]);
 
     if (!receta) return;
 
     // Calcular totales en ARS y USD
     let totalArs = 0;
     let totalUsd = 0;
-    const tc = await getTipoCambio();
 
     for (const c of componentes) {
-
         const monedaComp = c.moneda || 'ARS';
         const costoSubtotal = c.costo_subtotal || 0;
 
@@ -234,7 +235,9 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
     const costoUnitUsd = totalUsd / cantidad;
 
     const supabase = createClient();
-    await supabase
+
+    // Update concurrente: Receta y su Producto vinculado (si existe)
+    const updateRecetaPromise = supabase
         .from('recetas')
         .update({
             costo_total: totalArs,
@@ -245,13 +248,17 @@ export async function updateRecetaCostos(recetaId: string): Promise<void> {
         })
         .eq('id', recetaId);
 
-    // Actualizar el costo del producto vinculado (si existe)
+    const updatePromises: any[] = [updateRecetaPromise];
+
     if (receta.producto_id) {
-        console.log(`[updateRecetaCostos] Actualizando costo de producto vinculado ${receta.producto_id} a $${costoUnitArs}`);
-        await updateProducto(receta.producto_id, {
-            costo_unitario: costoUnitArs,
-        });
+        updatePromises.push(
+            updateProducto(receta.producto_id, {
+                costo_unitario: costoUnitArs,
+            })
+        );
     }
+
+    await Promise.all(updatePromises);
 }
 
 // ... (previous code)

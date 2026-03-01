@@ -35,27 +35,36 @@ export function RecetaComponentesSection({ recetaId, onCostosActualizados }: Rec
     const [editCantidad, setEditCantidad] = useState('');
 
     // Cargar datos
-    const loadData = useCallback(async () => {
+    const loadData = useCallback(async (forceAll = false) => {
         // setLoading(true);
-        const [componentesData, productosData, tc] = await Promise.all([
-            getComponentesByReceta(recetaId),
-            getProductos(),
-            getTipoCambio()
-        ]);
-        setComponentes(componentesData);
-        setProductos(productosData.filter(p => p.activo)); // Todo: filtrar solo MP/Insumos
-        setTipoCambio(tc);
+        if (forceAll || productos.length === 0) {
+            const [componentesData, productosData, tc] = await Promise.all([
+                getComponentesByReceta(recetaId),
+                getProductos(),
+                getTipoCambio()
+            ]);
+            setComponentes(componentesData);
+            setProductos(productosData.filter(p => p.activo)); // Todo: filtrar solo MP/Insumos
+            setTipoCambio(tc);
 
-        // Calcular costo total
-        const total = componentesData.reduce((acc, c) => acc + (c.costo_subtotal || 0), 0);
-        onCostosActualizados?.(total);
+            const total = componentesData.reduce((acc, c) => acc + (c.costo_subtotal || 0), 0);
+            onCostosActualizados?.(total);
+        } else {
+            // Solo recargar componentes
+            const componentesData = await getComponentesByReceta(recetaId);
+            setComponentes(componentesData);
+
+            const total = componentesData.reduce((acc, c) => acc + (c.costo_subtotal || 0), 0);
+            onCostosActualizados?.(total);
+        }
+
         setLoading(false);
-    }, [recetaId, onCostosActualizados]);
+    }, [recetaId, onCostosActualizados, productos.length]);
 
-    // Cargar datos
+    // Cargar datos iniciales
     useEffect(() => {
         // eslint-disable-next-line
-        loadData();
+        loadData(true);
     }, [loadData]);
 
 
