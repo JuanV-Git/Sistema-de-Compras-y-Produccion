@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PageContainer } from '@/components/layout';
 import { Card, Button, Select } from '@/components/ui';
 import { Save, ArrowLeft, Loader2, DollarSign } from 'lucide-react';
-import { createOrdenCompra, getNextNumeroOC } from '@/services/ordenesCompra';
+import { createOrdenCompra, getNextNumeroOC, addItemToOrden } from '@/services/ordenesCompra';
 import { getProveedores } from '@/services/proveedores';
 import { getTipoCambio } from '@/services/configuracion';
 import type { Proveedor } from '@/types/database';
@@ -18,6 +18,8 @@ export default function NuevaOrdenCompraPage() {
     const [proveedores, setProveedores] = useState<Proveedor[]>([]);
     const [loadingData, setLoadingData] = useState(true);
     const [tipoCambioGlobal, setTipoCambioGlobal] = useState(1200);
+
+    const [prefilledItems, setPrefilledItems] = useState<any[]>([]);
 
     const [formData, setFormData] = useState({
         numero: '',
@@ -38,9 +40,30 @@ export default function NuevaOrdenCompraPage() {
                 getTipoCambio()
             ]);
 
-            setFormData(prev => ({ ...prev, numero: numeroOC, tipo_cambio: tc.toString() })); // Reverted to original behavior for tipo_cambio
+            // Comprobar si hay info pre-cargada desde la Lista de Compras
+            let provPrefill = '';
+            let itemsPrefill = [];
+            const prefillStr = localStorage.getItem('nuevaOC_prefill');
+            if (prefillStr) {
+                try {
+                    const parsed = JSON.parse(prefillStr);
+                    provPrefill = parsed.proveedorId || '';
+                    itemsPrefill = parsed.items || [];
+                } catch (e) {
+                    console.error('Error parseando prefill:', e);
+                }
+            }
+
+            setPrefilledItems(itemsPrefill);
+
+            setFormData(prev => ({
+                ...prev,
+                numero: numeroOC,
+                tipo_cambio: tc.toString(),
+                proveedor_id: provPrefill,
+            }));
             setProveedores(proveedoresData);
-            setTipoCambioGlobal(tc); // Reverted to original state variable name
+            setTipoCambioGlobal(tc);
         } catch (err) {
             console.error('Error cargando datos iniciales:', err);
             setError('Error al cargar datos iniciales');
@@ -89,6 +112,21 @@ export default function NuevaOrdenCompraPage() {
             });
 
             if (result) {
+                // Si había items pre-cargados, los agregamos ahora
+                if (prefilledItems.length > 0) {
+                    await Promise.all(
+                        prefilledItems.map(item =>
+                            addItemToOrden({
+                                orden_compra_id: result.id,
+                                producto_id: item.productoId,
+                                cantidad_pedida: item.cantidad,
+                                precio_unitario: item.precioUnitario,
+                            })
+                        )
+                    );
+                    localStorage.removeItem('nuevaOC_prefill'); // Limpiar pre-fill
+                }
+
                 router.push(`/compras/${result.id}`);
             } else {
                 setError('Error al crear la orden de compra');

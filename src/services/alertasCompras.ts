@@ -83,7 +83,7 @@ const MESES_CORTOS = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago'
 
 /**
  * Obtiene TODOS los datos necesarios para el panel de compras en una sola llamada.
- * Optimizado para minimizar queries a Supabase.
+ * Optimizado para minimizar queries a Supabase y ejecutarlas concurrentemente.
  */
 export async function getResumenPanelCompras(): Promise<{
     productos: ResumenProductoCompras[];
@@ -91,51 +91,52 @@ export async function getResumenPanelCompras(): Promise<{
     stockMPPorSubtipo: StockValorizadoGrupo[];
 }> {
     const supabase = createClient();
-    const tipoCambio = await getTipoCambio();
     const ahora = new Date();
     const mesActual = ahora.getMonth() + 1; // 1-12
     const añoActual = ahora.getFullYear();
+    const fecha24m = new Date(añoActual - 2, mesActual - 1, 1).toISOString();
 
-    // 1. Obtener productos (MP, ENVASE, ETIQUETA)
-    const { data: productosRaw } = await supabase
-        .from('productos')
-        .select('*')
-        .in('tipo', ['MP', 'ENVASE', 'ETIQUETA'])
-        .eq('activo', true)
-        .order('tipo')
-        .order('nombre');
+    // Ejecutar todas las consultas pesadas en paralelo
+    const [
+        tipoCambio,
+        { data: productosRaw },
+        { data: movimientosConsumo },
+        { data: movimientosIngreso },
+        { data: itemsOC },
+        { data: proveedoresLink },
+    ] = await Promise.all([
+        getTipoCambio(),
+        supabase
+            .from('productos')
+            .select('*')
+            .in('tipo', ['MP', 'ENVASE', 'ETIQUETA'])
+            .eq('activo', true)
+            .order('tipo')
+            .order('nombre'),
+        supabase
+            .from('movimientos_stock')
+            .select('producto_id, cantidad, created_at')
+            .eq('tipo_movimiento', 'SALIDA')
+            .eq('origen', 'CONSUMO_PRODUCCION')
+            .gte('created_at', fecha24m),
+        supabase
+            .from('movimientos_stock')
+            .select('producto_id, cantidad, costo_unitario, created_at, documento_numero, documento_id')
+            .eq('tipo_movimiento', 'ENTRADA')
+            .eq('origen', 'COMPRA')
+            .gte('created_at', fecha24m)
+            .order('created_at', { ascending: false }),
+        supabase
+            .from('ordenes_compra_items')
+            .select('producto_id, cantidad_pedida, cantidad_recibida, estado, orden_compra_id, orden_compra:ordenes_compra(id, numero, estado)')
+            .in('estado', ['PENDIENTE', 'PARCIAL']),
+        supabase
+            .from('productos_proveedores')
+            .select('producto_id, proveedor_id, precio_unitario, es_principal, proveedor:proveedores(id, nombre, plazo_entrega_dias)')
+            .eq('es_principal', true)
+    ]);
 
     const productos = (productosRaw || []) as Producto[];
-
-    // 2. Obtener consumos de los últimos 24 meses
-    const fecha24m = new Date(añoActual - 2, mesActual - 1, 1).toISOString();
-    const { data: movimientosConsumo } = await supabase
-        .from('movimientos_stock')
-        .select('producto_id, cantidad, created_at')
-        .eq('tipo_movimiento', 'SALIDA')
-        .eq('origen', 'CONSUMO_PRODUCCION')
-        .gte('created_at', fecha24m);
-
-    // 3. Obtener ingresos (compras) de los últimos 24 meses
-    const { data: movimientosIngreso } = await supabase
-        .from('movimientos_stock')
-        .select('producto_id, cantidad, costo_unitario, created_at, documento_numero, documento_id')
-        .eq('tipo_movimiento', 'ENTRADA')
-        .eq('origen', 'COMPRA')
-        .gte('created_at', fecha24m)
-        .order('created_at', { ascending: false });
-
-    // 4. Obtener pendientes de OCs abiertas
-    const { data: itemsOC } = await supabase
-        .from('ordenes_compra_items')
-        .select('producto_id, cantidad_pedida, cantidad_recibida, estado, orden_compra_id, orden_compra:ordenes_compra(id, numero, estado)')
-        .in('estado', ['PENDIENTE', 'PARCIAL']);
-
-    // 5. Obtener proveedores principales
-    const { data: proveedoresLink } = await supabase
-        .from('productos_proveedores')
-        .select('producto_id, proveedor_id, precio_unitario, es_principal, proveedor:proveedores(id, nombre, plazo_entrega_dias)')
-        .eq('es_principal', true);
 
     // ─── Indexar datos por producto_id ───────────────────
 
