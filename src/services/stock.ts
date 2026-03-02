@@ -205,7 +205,8 @@ export async function registrarConsumoProduccion(
     cantidad: number,
     opNumero: string,
     opId: string,
-    costoUnitario?: number
+    costoUnitario?: number,
+    fecha?: string
 ): Promise<MovimientoConProducto | null> {
     return crearMovimientoStock({
         producto_id: productoId,
@@ -216,6 +217,7 @@ export async function registrarConsumoProduccion(
         cantidad,
         costo_unitario: costoUnitario,
         observaciones: `Consumo para OP ${opNumero}`,
+        fecha,
     });
 }
 
@@ -227,7 +229,8 @@ export async function registrarProduccionPT(
     cantidad: number,
     opNumero: string,
     opId: string,
-    costoUnitario?: number
+    costoUnitario?: number,
+    fecha?: string
 ): Promise<MovimientoConProducto | null> {
     return crearMovimientoStock({
         producto_id: productoId,
@@ -238,6 +241,7 @@ export async function registrarProduccionPT(
         cantidad,
         costo_unitario: costoUnitario,
         observaciones: `Producción OP ${opNumero}`,
+        fecha,
     });
 }
 

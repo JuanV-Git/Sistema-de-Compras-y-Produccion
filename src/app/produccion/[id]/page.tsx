@@ -48,6 +48,7 @@ export default function OrdenProduccionDetallePage() {
     const [orden, setOrden] = useState<OrdenProduccionConRelaciones | null>(null);
     const [loading, setLoading] = useState(true);
     const [cantidadProducida, setCantidadProducida] = useState('');
+    const [fechaCierre, setFechaCierre] = useState(new Date().toISOString().split('T')[0]);
     const [completando, setCompletando] = useState(false);
     const [toastMsg, setToastMsg] = useState<string | null>(null);
 
@@ -139,7 +140,12 @@ export default function OrdenProduccionDetallePage() {
             await registrarProduccion(ordenId, cantProd);
 
             // Luego completar (registra movimientos de stock)
-            const result = await cambiarEstadoOrdenProduccion(ordenId, 'COMPLETADA');
+            const result = await cambiarEstadoOrdenProduccion(
+                ordenId,
+                'COMPLETADA',
+                false,
+                new Date(fechaCierre + 'T12:00:00Z').toISOString()
+            );
 
             if (result.success) {
                 await loadData();
@@ -334,7 +340,7 @@ export default function OrdenProduccionDetallePage() {
                             <AlertCircle className="w-5 h-5 text-[var(--color-warning)]" />
                             <h3 className="text-lg font-semibold text-[var(--text-primary)]">Registrar Producción</h3>
                         </div>
-                        <div className="flex items-end gap-4">
+                        <div className="flex flex-col md:flex-row items-end gap-4">
                             <div className="flex-1">
                                 <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
                                     Cantidad Producida
@@ -352,6 +358,18 @@ export default function OrdenProduccionDetallePage() {
                                         {orden.unidad_medida}
                                     </span>
                                 </div>
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                                    Fecha de Finalización *
+                                </label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={fechaCierre}
+                                    onChange={(e) => setFechaCierre(e.target.value)}
+                                    className="w-full px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
+                                />
                             </div>
                             <Button onClick={handleGuardarProduccion} variant="secondary">
                                 Guardar

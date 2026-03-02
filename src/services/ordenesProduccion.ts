@@ -110,6 +110,7 @@ export type CreateOrdenProduccionData = {
     unidad_medida: string;
     costo_teorico_total: number;
     observaciones?: string;
+    fecha_creacion?: string;
 };
 
 /**
@@ -124,7 +125,7 @@ export async function createOrdenProduccion(data: CreateOrdenProduccionData): Pr
         cantidad_producida: 0,
         costo_real_total: 0,
         variacion_porcentaje: 0,
-        fecha_creacion: new Date().toISOString(),
+        fecha_creacion: data.fecha_creacion || new Date().toISOString(),
     };
 
     const { data: result, error } = await supabase
@@ -364,7 +365,8 @@ export async function verificarDisponibilidadStock(ordenId: string): Promise<Rep
 export async function cambiarEstadoOrdenProduccion(
     id: string,
     estado: EstadoOP,
-    forzarInicio: boolean = false
+    forzarInicio: boolean = false,
+    fechaCierre?: string
 ): Promise<{ success: boolean; error?: string; faltantes?: ReporteFaltantes }> {
 
     // Validación de stock antes de iniciar
@@ -384,7 +386,7 @@ export async function cambiarEstadoOrdenProduccion(
     if (estado === 'EN_PRODUCCION') {
         updates.fecha_inicio = new Date().toISOString();
     } else if (estado === 'COMPLETADA') {
-        updates.fecha_cierre = new Date().toISOString();
+        updates.fecha_cierre = fechaCierre || new Date().toISOString();
 
         // Calcular costo real y variación
         const consumos = await getConsumosByOrden(id);
@@ -410,7 +412,8 @@ export async function cambiarEstadoOrdenProduccion(
                             consumo.cantidad_real,
                             orden.numero,
                             orden.id,
-                            consumo.costo_unitario
+                            consumo.costo_unitario,
+                            fechaCierre
                         );
                         console.log(`Stock: SALIDA ${consumo.cantidad_real} de ${consumo.producto?.codigo || consumo.producto_id}`);
                     } catch (error) {
@@ -428,7 +431,8 @@ export async function cambiarEstadoOrdenProduccion(
                         orden.cantidad_producida,
                         orden.numero,
                         orden.id,
-                        costoUnitarioPT
+                        costoUnitarioPT,
+                        fechaCierre
                     );
                     console.log(`Stock: ENTRADA ${orden.cantidad_producida} de PT ${orden.producto_id}`);
                 } catch (error) {

@@ -23,6 +23,7 @@ export default function NuevaOrdenProduccionPage() {
         receta_id: '',
         cantidad_programada: '1',
         observaciones: '',
+        fecha_creacion: new Date().toISOString().split('T')[0],
     });
 
     async function loadInitialData() {
@@ -82,6 +83,7 @@ export default function NuevaOrdenProduccionPage() {
                 unidad_medida: selectedReceta.unidad_medida,
                 costo_teorico_total: costoTeoricoTotal,
                 observaciones: formData.observaciones || undefined,
+                fecha_creacion: new Date(formData.fecha_creacion + 'T12:00:00Z').toISOString(),
             });
 
             if (result) {
@@ -145,6 +147,20 @@ export default function NuevaOrdenProduccionPage() {
                                 value={formData.numero}
                                 readOnly
                                 className="w-full px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] opacity-70 cursor-not-allowed"
+                            />
+                        </div>
+
+                        {/* Fecha de Creación */}
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                                Fecha de Creación *
+                            </label>
+                            <input
+                                type="date"
+                                required
+                                value={formData.fecha_creacion}
+                                onChange={(e) => handleChange('fecha_creacion', e.target.value)}
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-default)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
                             />
                         </div>
 
