@@ -251,10 +251,14 @@ export async function generarConsumosTeoricos(ordenId: string, recetaId: string,
     const cantidadProducidaReceta = recetaData?.cantidad_producida || 1;
     const factor = cantidadProgramada / cantidadProducidaReceta;
 
+    let totalCostoTeorico = 0;
+
     // Crear consumos teóricos
     for (const comp of componentes) {
         const cantidadTeorica = comp.cantidad * factor;
         const costoTeorico = cantidadTeorica * (comp.costo_unitario || 0);
+
+        totalCostoTeorico += costoTeorico;
 
         await supabase.from('ordenes_produccion_consumos').insert({
             orden_produccion_id: ordenId,
@@ -267,6 +271,11 @@ export async function generarConsumosTeoricos(ordenId: string, recetaId: string,
             variacion_cantidad: 0,
         });
     }
+
+    // Update the OP's total theoretical cost based on the strict sum of its components
+    await supabase.from('ordenes_produccion').update({
+        costo_teorico_total: totalCostoTeorico
+    }).eq('id', ordenId);
 
     return true;
 }

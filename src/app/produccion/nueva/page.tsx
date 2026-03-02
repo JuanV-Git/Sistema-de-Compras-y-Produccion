@@ -51,9 +51,9 @@ export default function NuevaOrdenProduccionPage() {
         setSelectedReceta(receta || null);
     }
 
-    // Calcular costo teórico total basado en receta y cantidad
+    // Calcular costo teórico total basado en receta y cantidad (preferir USD para consistencia con los consumos)
     const costoTeoricoTotal = selectedReceta
-        ? (selectedReceta.costo_por_unidad || 0) * parseFloat(formData.cantidad_programada || '0')
+        ? ((selectedReceta.costo_por_unidad_usd ?? selectedReceta.costo_por_unidad) || 0) * parseFloat(formData.cantidad_programada || '0')
         : 0;
 
     async function handleSubmit(e: React.FormEvent) {
@@ -227,13 +227,13 @@ export default function NuevaOrdenProduccionPage() {
                                 <div>
                                     <p className="text-[var(--text-muted)]">Costo por Unidad</p>
                                     <p className="gold-text font-medium">
-                                        ${selectedReceta.costo_por_unidad?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                        ${(selectedReceta.costo_por_unidad_usd ?? selectedReceta.costo_por_unidad)?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                                     </p>
                                 </div>
                                 <div>
                                     <p className="text-[var(--text-muted)]">Costo Total Receta</p>
                                     <p className="text-[var(--text-primary)] font-medium">
-                                        ${selectedReceta.costo_total?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                        ${(selectedReceta.costo_total_usd ?? selectedReceta.costo_total)?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                                     </p>
                                 </div>
                                 <div>
